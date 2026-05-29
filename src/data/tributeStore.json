@@ -1,0 +1,115 @@
+[
+  {
+    "id": "expedite_crew",
+    "name": "Expedite Crew",
+    "cost": 2,
+    "category": "Time",
+    "type": "time",
+    "desc": "Unlock 1 crew member from Contract lockout instantly.",
+    "effect": {
+      "action": "unlock_one_contract_crew"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "rush_property",
+    "name": "Rush Property",
+    "cost": 5,
+    "category": "Time",
+    "type": "time",
+    "desc": "Collect 1 hour of your current property income immediately. This does not increase income rate.",
+    "effect": {
+      "action": "collect_one_hour_property_income"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "heat_bribe",
+    "name": "Heat Bribe",
+    "cost": 3,
+    "category": "Time",
+    "type": "time",
+    "desc": "Reduce Heat by 20 instantly. This only clears pressure and does not add power.",
+    "effect": {
+      "action": "reduce_heat",
+      "amount": 20
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "golden_suit",
+    "name": "Golden Suit",
+    "cost": 50,
+    "category": "Flex",
+    "type": "cosmetic",
+    "desc": "Adds a gold avatar border on Contract cards and profile displays.",
+    "effect": {
+      "action": "cosmetic_avatar_border",
+      "border": "gold"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "enforcer_tag",
+    "name": "Enforcer Tag",
+    "cost": 100,
+    "category": "Flex",
+    "type": "cosmetic",
+    "desc": "Adds [ENFORCER] before your boss name in Street Chat.",
+    "effect": {
+      "action": "cosmetic_chat_prefix",
+      "prefix": "[ENFORCER]"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "boss_skin_nightfall",
+    "name": "Boss Skin: Nightfall",
+    "cost": 200,
+    "category": "Flex",
+    "type": "cosmetic",
+    "desc": "Replaces your boss class image with the Nightfall boss skin.",
+    "effect": {
+      "action": "cosmetic_boss_skin",
+      "skin": "/art/classes/nightfall.jpg"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "auto_manager",
+    "name": "Auto-Manager",
+    "cost": 150,
+    "category": "Utility",
+    "type": "utility",
+    "desc": "Automatically assigns an available crew member as manager when buying a property.",
+    "effect": {
+      "action": "enable_auto_manager"
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "heat_alerts",
+    "name": "Heat Alerts",
+    "cost": 25,
+    "category": "Utility",
+    "type": "utility",
+    "desc": "Shows a warning when Heat reaches 45 before penalties begin.",
+    "effect": {
+      "action": "enable_heat_alerts",
+      "threshold": 45
+    },
+    "fairPlay": true
+  },
+  {
+    "id": "contract_intel",
+    "name": "Contract Intel",
+    "cost": 75,
+    "category": "Utility",
+    "type": "utility",
+    "desc": "Shows defender property bonuses before attacking a Contract target.",
+    "effect": {
+      "action": "enable_contract_intel"
+    },
+    "fairPlay": true
+  }
+]

@@ -1,0 +1,69 @@
+[
+  {
+    "id": "contract_dockside_outfit",
+    "rivalName": "Dockside Outfit",
+    "avatar": "/art/rivals/dockside-outfit.jpg",
+    "level": 2,
+    "bossClass": "mogul",
+    "district": "docks",
+    "cityControlBracket": "0-25",
+    "power": 44,
+    "cash": 2400,
+    "health": 100,
+    "propertyBonuses": [
+      {
+        "propertyId": "dockside_lot",
+        "propertyName": "Dockside Lot",
+        "district": "docks",
+        "bonus": 0.15,
+        "label": "+15% power if attacker owns Dockside Lot"
+      }
+    ],
+    "status": "available"
+  },
+  {
+    "id": "contract_southside_saint",
+    "rivalName": "Southside Saint",
+    "avatar": "/art/chapters/first-blood-southside.jpg",
+    "level": 3,
+    "bossClass": "strategist",
+    "district": "southside",
+    "cityControlBracket": "0-25",
+    "power": 52,
+    "cash": 3600,
+    "health": 100,
+    "propertyBonuses": [
+      {
+        "propertyId": "corner_shop",
+        "propertyName": "Corner Shop",
+        "district": "southside",
+        "bonus": 0.1,
+        "label": "+10% power if attacker owns Corner Shop"
+      }
+    ],
+    "status": "available"
+  },
+  {
+    "id": "contract_viper_lane",
+    "rivalName": "Viper Lane",
+    "avatar": "/art/rivals/riverside-runners.jpg",
+    "level": 4,
+    "bossClass": "ghost",
+    "district": "riverside",
+    "cityControlBracket": "25-50",
+    "power": 68,
+    "cash": 5200,
+    "health": 100,
+    "propertyBonuses": [
+      {
+        "propertyId": "auto_garage",
+        "propertyName": "Auto Garage",
+        "district": "riverside",
+        "bonus": 0.15,
+        "label": "+15% power if attacker owns Auto Garage"
+      }
+    ],
+    "status": "available",
+    "ghostMapHideMinutesAfterHit": 5
+  }
+]

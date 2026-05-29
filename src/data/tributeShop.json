@@ -1,0 +1,203 @@
+{
+  "version": "fairplay_v1",
+  "currency": "Tribute",
+  "hardRule": "Tribute cannot buy Power, Attack, Defense, combat Crew, PvP advantage, or unlimited Energy that converts to Power.",
+  "rejectedItems": [
+    {
+      "id": "contract_muscle_old",
+      "name": "Contract Muscle",
+      "oldPriceTribute": 10,
+      "oldEffect": "+1 Permanent Crew",
+      "status": "REJECTED",
+      "reason": "Permanent Crew can improve combat power and help a paying player beat a free player in PvP."
+    },
+    {
+      "id": "energy_drop_old",
+      "name": "Energy Drop",
+      "oldPriceTribute": 5,
+      "oldEffect": "+200 Energy",
+      "status": "REJECTED",
+      "reason": "Energy converts into jobs, cash, XP, district control, and long-term power."
+    },
+    {
+      "id": "shadow_crate_old",
+      "name": "Shadow Crate",
+      "oldPriceTribute": 10,
+      "oldEffect": "Random cash, energy, stamina, or full heal",
+      "status": "REJECTED",
+      "reason": "Random rewards can create paid combat advantage through stamina, healing, cash, or energy."
+    }
+  ],
+  "items": [
+    {
+      "id": "hq_skin_warehouse_front",
+      "name": "Custom HQ Skin: Warehouse Front",
+      "category": "Construction Cosmetic",
+      "priceTribute": 25,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Cosmetic",
+      "image": "/art/properties/warehouse-front.png",
+      "description": "Changes the look of your boss HQ to a dark warehouse-front operation.",
+      "effects": {
+        "cosmeticOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "profile_background_southside_concrete",
+      "name": "Profile Background: Southside Concrete",
+      "category": "Construction Cosmetic",
+      "priceTribute": 20,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Cosmetic",
+      "image": "/art/chapters/first-blood-southside.jpg",
+      "description": "Adds a Southside concrete-pour background to your boss profile.",
+      "effects": {
+        "cosmeticOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "construction_banner_pack",
+      "name": "Construction Banner Pack",
+      "category": "Construction Cosmetic",
+      "priceTribute": 15,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Cosmetic",
+      "image": "/art/properties/warehouse-front.png",
+      "description": "Unlocks concrete, warehouse, caution-stripe, and blueprint-style profile banners.",
+      "effects": {
+        "cosmeticOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "blueprint_ui_theme",
+      "name": "Blueprint UI Theme",
+      "category": "UI Cosmetic",
+      "priceTribute": 30,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Cosmetic",
+      "image": "/art/pages/city-wire.jpg",
+      "description": "Applies an exclusive blueprint-style UI theme. Pure visual upgrade.",
+      "effects": {
+        "cosmeticOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "boss_nameplate_gold_concrete",
+      "name": "Gold Concrete Nameplate",
+      "category": "Profile Cosmetic",
+      "priceTribute": 10,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Cosmetic",
+      "image": "/art/chapters/first-blood-southside.jpg",
+      "description": "Adds a gold concrete-style nameplate to your boss profile and Reputation Wall posts.",
+      "effects": {
+        "cosmeticOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "extra_saved_look_slot",
+      "name": "Extra Saved Look Slot",
+      "category": "Convenience Slot",
+      "priceTribute": 15,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Convenience",
+      "image": "/art/properties/warehouse-front.png",
+      "description": "Adds one extra saved cosmetic/loadout look slot. Does not affect combat or income.",
+      "effects": {
+        "cosmeticOnly": false,
+        "convenienceOnly": true,
+        "power": 0,
+        "attack": 0,
+        "defense": 0,
+        "energy": 0,
+        "cash": 0
+      }
+    },
+    {
+      "id": "foreman_pass_30_day",
+      "name": "Foreman Pass",
+      "category": "30-Day Pass",
+      "priceTribute": 50,
+      "status": "ACTIVE",
+      "fairPlaySafe": true,
+      "fairPlayType": "Speed + Cosmetic",
+      "durationDays": 30,
+      "image": "/art/properties/warehouse-front.png",
+      "description": "30-day convenience pass with one non-combat crew assignment slot, 2x offline income storage cap, and the exclusive Blueprint UI theme.",
+      "effects": {
+        "extraCrewSlot": 1,
+        "crewSlotType": "nonCombatAssignmentOnly",
+        "combatCrewBonus": 0,
+        "attack": 0,
+        "defense": 0,
+        "power": 0,
+        "offlineIncomeCapMultiplier": 2,
+        "exclusiveTheme": "blueprint",
+        "energy": 0,
+        "cash": 0
+      },
+      "fairPlayNotes": "The extra crew slot must never count toward PvP attack, PvP defense, or combat power. It can only be used for non-combat assignments such as managers, lookouts, cosmetics, or offline collection storage."
+    },
+    {
+      "id": "back_in_business_bundle",
+      "name": "Back in Business Bundle",
+      "category": "Catch-Up",
+      "priceTribute": 5,
+      "status": "ACTIVE_LIMITED",
+      "fairPlaySafe": true,
+      "fairPlayType": "Monthly Catch-Up",
+      "image": "/art/chapters/first-blood-southside.jpg",
+      "description": "For returning players only. If offline 7+ days, claim 1,000 Cash and 50 Recovery Energy once per month.",
+      "eligibility": {
+        "offlineDaysRequired": 7,
+        "monthlyLimit": 1
+      },
+      "effects": {
+        "cash": 1000,
+        "recoveryEnergy": 50,
+        "power": 0,
+        "attack": 0,
+        "defense": 0
+      },
+      "restrictions": {
+        "oncePerMonth": true,
+        "requiresOfflineDays": 7,
+        "cannotBeUsedForPvP": true,
+        "cannotBeUsedForEventLeaderboard": true,
+        "recoveryEnergyUse": "nonPvERecoveryOnly"
+      },
+      "fairPlayNotes": "This is a controlled churn-recovery offer, not an unlimited power purchase. Recovery Energy should not apply to PvP, Turf War scoring, or repeatable power farming."
+    }
+  ]
+}
