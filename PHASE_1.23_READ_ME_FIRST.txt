@@ -1,0 +1,28 @@
+Shadow Syndicate - Phase 1.23 Cinematic Login Background
+
+Use this folder as the current working project.
+Recommended working folder name on your Desktop: SS-CURRENT
+
+What changed:
+- Added a cinematic full-page login background.
+- Added a dark overlay to keep the sign-in form readable.
+- Added underworld/city atmosphere using new public SVG art.
+- Strengthened the login hero banner.
+- Updated the visible build label to Phase 1.23.
+
+Preserved:
+- Sign in
+- Sign out
+- Forgot password
+- Admin reset tools
+- Account screen
+- Local save/account separation
+- Profile picture/GIF upload
+- All existing game logic
+
+Run:
+npm.cmd install
+npm.cmd run dev -- --port 5183
+
+Build check:
+You should see: Phase 1.23 • Cinematic Login Background

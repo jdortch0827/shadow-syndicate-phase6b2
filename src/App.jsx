@@ -3,11 +3,13 @@ import React, { useEffect, useMemo, useState } from "react";
 const SAVE_KEY = "shadow_syndicate_live_source_save_v1";
 const AUTH_USERS_KEY = "shadow_syndicate_auth_users_v1";
 const AUTH_SESSION_KEY = "shadow_syndicate_auth_session_v1";
+const INSTALL_PROMPT_DISMISSED_KEY = "shadow_syndicate_install_prompt_dismissed_v1";
+const INSTALL_PROMPT_ACCEPTED_KEY = "shadow_syndicate_install_prompt_accepted_v1";
 const ADMIN_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "admin123";
 const ADMIN_DEFAULT_PIN = "0000";
-const APP_PHASE = "Phase 1.24B";
-const APP_BUILD_NAME = "Brighter Login Background";
+const APP_PHASE = "Phase 1.25";
+const APP_BUILD_NAME = "App Icon & Install Prompt";
 const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
 
 
@@ -2359,6 +2361,13 @@ export default function App() {
   const [startingDistrictId, setStartingDistrictId] = useState(game.startingDistrictId || "docks");
   const [setupProfileImage, setSetupProfileImage] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [installPromptMode, setInstallPromptMode] = useState("native");
+  const [installPromptDismissed, setInstallPromptDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "1" || window.localStorage.getItem(INSTALL_PROMPT_ACCEPTED_KEY) === "1";
+  });
 
   const currentUser = session?.username ? users[session.username] : null;
   const selectedClass = bossClasses.find((item) => item.id === classId) || bossClasses[0];
@@ -4021,14 +4030,91 @@ export default function App() {
     return getDistrictName(id);
   }
 
+  const handleDismissInstallPrompt = () => {
+    setShowInstallPrompt(false);
+    setInstallPromptDismissed(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, "1");
+    }
+  };
+
+  const handleInstallApp = async () => {
+    if (installPromptMode === "ios") {
+      handleDismissInstallPrompt();
+      return;
+    }
+
+    if (!deferredInstallPrompt) return;
+
+    deferredInstallPrompt.prompt();
+    const choiceResult = await deferredInstallPrompt.userChoice.catch(() => null);
+
+    if (choiceResult?.outcome === "accepted") {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(INSTALL_PROMPT_ACCEPTED_KEY, "1");
+      }
+      setInstallPromptDismissed(true);
+      setShowInstallPrompt(false);
+    }
+
+    setDeferredInstallPrompt(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const accepted = window.localStorage.getItem(INSTALL_PROMPT_ACCEPTED_KEY) === "1";
+    if (accepted || installPromptDismissed) return undefined;
+
+    const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+    if (isStandalone) return undefined;
+
+    const isiOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || "") && /safari/i.test(window.navigator.userAgent || "");
+
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+      setInstallPromptMode("native");
+      setShowInstallPrompt(true);
+    };
+
+    const onAppInstalled = () => {
+      window.localStorage.setItem(INSTALL_PROMPT_ACCEPTED_KEY, "1");
+      setInstallPromptDismissed(true);
+      setShowInstallPrompt(false);
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+
+    if (isiOS) {
+      setInstallPromptMode("ios");
+      setShowInstallPrompt(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, [installPromptDismissed]);
+
   if (!session || !currentUser) {
     return (
-      <AuthScreen
-        users={users}
-        onSignIn={signIn}
-        onCreateAccount={createPlayerAccount}
-        onResetPassword={resetOwnPassword}
-      />
+      <>
+        <InstallPromptBanner
+          visible={showInstallPrompt}
+          mode={installPromptMode}
+          onInstall={handleInstallApp}
+          onDismiss={handleDismissInstallPrompt}
+        />
+        <AuthScreen
+          users={users}
+          onSignIn={signIn}
+          onCreateAccount={createPlayerAccount}
+          onResetPassword={resetOwnPassword}
+        />
+      </>
     );
   }
 
@@ -4036,7 +4122,14 @@ export default function App() {
 
   if (!game.started) {
     return (
-      <div className="start-page">
+      <>
+        <InstallPromptBanner
+          visible={showInstallPrompt}
+          mode={installPromptMode}
+          onInstall={handleInstallApp}
+          onDismiss={handleDismissInstallPrompt}
+        />
+        <div className="start-page">
         <div className="start-shell">
           <div className="quick-account-bar">
             <div>
@@ -4146,10 +4239,18 @@ export default function App() {
           </section>
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+      <InstallPromptBanner
+        visible={showInstallPrompt}
+        mode={installPromptMode}
+        onInstall={handleInstallApp}
+        onDismiss={handleDismissInstallPrompt}
+      />
     <div className="app">
       <header className="top-hero">
         <div className="top-hero-overlay">
@@ -4841,10 +4942,40 @@ export default function App() {
         ))}
       </nav>
     </div>
+    </>
   );
 }
 
+function InstallPromptBanner({ visible, mode, onInstall, onDismiss }) {
+  if (!visible) return null;
 
+  const isIos = mode === "ios";
+
+  return (
+    <div className="install-prompt-banner" role="dialog" aria-label="Install Shadow Syndicate">
+      <div className="install-prompt-icon-wrap">
+        <img src="/icon-192.png" alt="Shadow Syndicate app icon" className="install-prompt-icon" />
+      </div>
+      <div className="install-prompt-copy">
+        <span className="install-kicker">Install Shadow Syndicate</span>
+        <strong>Put the city on your home screen.</strong>
+        <p>
+          {isIos
+            ? "Add the game to your home screen. Tap Share, then tap Add to Home Screen for a full app-style launch."
+            : "Install the game for a faster launch, a cleaner full-screen feel, and a real app icon on your phone or desktop."}
+        </p>
+      </div>
+      <div className="install-prompt-actions">
+        <button type="button" className="primary compact-button" onClick={onInstall}>
+          {isIos ? "Got It" : "Install"}
+        </button>
+        <button type="button" className="secondary compact-button" onClick={onDismiss}>
+          Not Now
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PasswordField({ label, value, onChange, placeholder = "Password", autoComplete = "current-password" }) {
   const [show, setShow] = useState(false);
@@ -5031,7 +5162,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
           <div className="auth-admin-note">
             <strong>Prototype admin login:</strong> admin / admin123. Admin recovery PIN: 0000. Change it after you sign in.<br />
-            <strong>Build check:</strong> You should see Phase 1.24B on this screen. If not, the wrong folder is running.
+            <strong>Build check:</strong> You should see Phase 1.25 on this screen. If not, the wrong folder is running.
           </div>
         </section>
       </div>

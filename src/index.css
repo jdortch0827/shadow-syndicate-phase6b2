@@ -4278,3 +4278,115 @@ select {
     background: radial-gradient(circle at 15% 15%, rgba(245,158,11,0.16), transparent 14rem), linear-gradient(180deg, rgba(2,2,3,0.02), rgba(2,2,3,0.28));
   }
 }
+
+/* Phase 1.25 app icon + install prompt */
+.install-prompt-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(960px, calc(100% - 1rem));
+  z-index: 2000;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, rgba(20, 20, 22, 0.96), rgba(8, 8, 9, 0.9));
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+}
+
+.install-prompt-icon-wrap {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+}
+
+.install-prompt-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.install-prompt-copy {
+  min-width: 0;
+}
+
+.install-kicker {
+  display: block;
+  color: #f5b12c;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  margin-bottom: 0.2rem;
+}
+
+.install-prompt-copy strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+}
+
+.install-prompt-copy p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.install-prompt-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .install-prompt-banner {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .install-prompt-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .install-prompt-actions .compact-button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .install-prompt-banner {
+    top: 8px;
+    width: calc(100% - 0.75rem);
+    border-radius: 18px;
+  }
+
+  .install-prompt-icon-wrap {
+    width: 52px;
+    height: 52px;
+  }
+
+  .install-prompt-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .install-prompt-copy strong {
+    font-size: 0.96rem;
+  }
+
+  .install-prompt-copy p {
+    font-size: 0.86rem;
+  }
+}
