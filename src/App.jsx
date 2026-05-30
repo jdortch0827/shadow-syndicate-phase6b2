@@ -5,11 +5,12 @@ const AUTH_USERS_KEY = "shadow_syndicate_auth_users_v1";
 const AUTH_SESSION_KEY = "shadow_syndicate_auth_session_v1";
 const INSTALL_PROMPT_DISMISSED_KEY = "shadow_syndicate_install_prompt_dismissed_v1";
 const INSTALL_PROMPT_ACCEPTED_KEY = "shadow_syndicate_install_prompt_accepted_v1";
+const SETTINGS_KEY = "shadow_syndicate_settings_v1";
 const ADMIN_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "admin123";
 const ADMIN_DEFAULT_PIN = "0000";
-const APP_PHASE = "Phase 1.25";
-const APP_BUILD_NAME = "App Icon & Install Prompt";
+const APP_PHASE = "Phase 1.26";
+const APP_BUILD_NAME = "Settings, Install Hub & New App Icon";
 const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
 
 
@@ -843,6 +844,12 @@ const pageCards = [
     image: "/art/pages/city-wire.jpg",
     desc: "Track city updates and underworld movement.",
   },
+  {
+    tab: "settings",
+    title: "Settings",
+    image: "/icon-192.png",
+    desc: "Tune your game, app install behavior, and quality-of-life preferences.",
+  },
 ];
 
 const streetOpportunities = [
@@ -1175,6 +1182,22 @@ function loadAuthSession() {
     return session?.username ? session : null;
   } catch {
     return null;
+  }
+}
+
+const defaultSettings = {
+  musicOn: true,
+  sfxOn: true,
+  notificationsOn: true,
+  reducedMotion: false,
+};
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
+    return { ...defaultSettings, ...(saved && typeof saved === "object" ? saved : {}) };
+  } catch {
+    return { ...defaultSettings };
   }
 }
 
@@ -2369,6 +2392,8 @@ export default function App() {
     return window.localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "1" || window.localStorage.getItem(INSTALL_PROMPT_ACCEPTED_KEY) === "1";
   });
 
+  const [settings, setSettings] = useState(loadSettings);
+
   const currentUser = session?.username ? users[session.username] : null;
   const selectedClass = bossClasses.find((item) => item.id === classId) || bossClasses[0];
   const selectedDistrict = startingDistrictOptions.find((item) => item.id === startingDistrictId) || startingDistrictOptions[0];
@@ -2476,6 +2501,14 @@ export default function App() {
     if (!game.started) return;
     setGame((old) => ensureDailyState(old));
   }, [game.started]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("reduce-motion", Boolean(settings.reducedMotion));
+    }
+  }, [settings]);
+
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -4030,6 +4063,41 @@ export default function App() {
     return getDistrictName(id);
   }
 
+  function updateSetting(key) {
+    setSettings((old) => ({ ...old, [key]: !old[key] }));
+  }
+
+  function reopenInstallPrompt() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(INSTALL_PROMPT_DISMISSED_KEY);
+    setInstallPromptDismissed(false);
+
+    const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const isiOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || "") && /safari/i.test(window.navigator.userAgent || "");
+    if (isiOS) {
+      setInstallPromptMode("ios");
+      setShowInstallPrompt(true);
+      return;
+    }
+
+    if (deferredInstallPrompt) {
+      setInstallPromptMode("native");
+      setShowInstallPrompt(true);
+    }
+  }
+
+  function resetInstallPromptMemory() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(INSTALL_PROMPT_DISMISSED_KEY);
+    window.localStorage.removeItem(INSTALL_PROMPT_ACCEPTED_KEY);
+    setInstallPromptDismissed(false);
+  }
+
+  const isInstalled = typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true);
+  const installReady = Boolean(deferredInstallPrompt) || installPromptMode === "ios";
+
   const handleDismissInstallPrompt = () => {
     setShowInstallPrompt(false);
     setInstallPromptDismissed(true);
@@ -4334,6 +4402,7 @@ export default function App() {
           ["wire", "City Wire"],
           ["log", "Log"],
           ["account", "Account"],
+          ["settings", "Settings"],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} className={tab === id ? "active" : ""}>
             {label}
@@ -4846,6 +4915,20 @@ export default function App() {
             </Panel>
           )}
 
+          {tab === "settings" && (
+            <Panel title="Settings & Install" sub="Tune your local game experience, install behavior, and quick quality-of-life options.">
+              <SettingsPanel
+                settings={settings}
+                onToggle={updateSetting}
+                installReady={installReady}
+                isInstalled={isInstalled}
+                buildLabel={APP_BUILD_LABEL}
+                onOpenInstall={reopenInstallPrompt}
+                onResetInstallPrompt={resetInstallPromptMemory}
+              />
+            </Panel>
+          )}
+
           {tab === "account" && (
             <Panel title="Account" sub="Manage sign-in, password, admin resets, and your boss picture or animated GIF.">
               <AccountPanel
@@ -4869,6 +4952,8 @@ export default function App() {
         <aside className="sidebar">
           <Panel title="Empire Status">
             <Info label="Build" value={APP_BUILD_LABEL} />
+            <Info label="App Install" value={isInstalled ? "Installed" : installReady ? "Ready" : "Browser only"} />
+            <Info label="Settings" value={`${settings.musicOn ? "Music On" : "Music Off"} • ${settings.sfxOn ? "SFX On" : "SFX Off"}`} />
             <Info label="Boss Class" value={bossClass.name} />
             <Info label="Campaign" value={`${campaignClaimedCount}/${campaignChapters.length} chapters`} />
             <Info label="Daily Orders" value={dailyClaimed ? `Claimed • ${game.dailyStreak || 0} streak` : `${dailyOrders.filter((order) => order.done).length}/${dailyOrders.length} complete`} />
@@ -4935,6 +5020,7 @@ export default function App() {
           ["lieutenants", "Lts"],
           ["vault", "Vault"],
           ["account", "Acct"],
+          ["settings", "Set"],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} className={tab === id ? "active" : ""}>
             {label}
@@ -5169,6 +5255,72 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
     </div>
   );
 }
+
+function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt }) {
+  const rows = [
+    ["musicOn", "Music", "Keep the underworld soundtrack enabled when the audio layer is added."],
+    ["sfxOn", "Sound Effects", "Keep action sounds enabled for taps, jobs, fights, and rewards."],
+    ["notificationsOn", "Install Reminders", "Allow the game to keep showing install reminders and related prompts."],
+    ["reducedMotion", "Reduced Motion", "Cut down on motion and transitions for a calmer screen."],
+  ];
+
+  return (
+    <div className="settings-panel">
+      <section className="settings-hero-card">
+        <img src="/icon-192.png" alt="Shadow Syndicate app icon" />
+        <div>
+          <p className="kicker">Game Setup</p>
+          <h3>Shadow Syndicate App Hub</h3>
+          <p className="soft-text">This build now uses the new app icon art and gives the player a simple place to manage install prompts and basic experience settings.</p>
+          <p className="soft-text">Running: {buildLabel}</p>
+        </div>
+      </section>
+
+      <div className="account-grid">
+        <section className="account-box settings-box">
+          <h3>Install Status</h3>
+          <p className="soft-text">Current status: <strong>{isInstalled ? "Installed to device" : installReady ? "Install prompt available" : "Browser mode"}</strong></p>
+          <div className="button-row compact-row">
+            <button className="primary" type="button" onClick={onOpenInstall} disabled={isInstalled || !installReady}>
+              {isInstalled ? "Already Installed" : "Open Install Prompt"}
+            </button>
+            <button className="secondary" type="button" onClick={onResetInstallPrompt}>
+              Reset Install Prompt
+            </button>
+          </div>
+          <p className="soft-text">If the install prompt was dismissed before, reset it here so you can test it again.</p>
+        </section>
+
+        <section className="account-box settings-box">
+          <h3>App Icon Preview</h3>
+          <div className="settings-icon-preview">
+            <img src="/icon-512.png" alt="Shadow Syndicate icon preview" />
+            <div>
+              <p className="soft-text">The new icon is now tied into the favicon, manifest, Apple touch icon, and installable app icon set.</p>
+              <p className="soft-text">This is the art players should see when they install the game to their phone or desktop.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="account-box settings-box full-span">
+          <h3>Game Preferences</h3>
+          <div className="settings-toggle-list">
+            {rows.map(([key, label, desc]) => (
+              <button key={key} type="button" className={`settings-toggle ${settings[key] ? "on" : "off"}`} onClick={() => onToggle(key)}>
+                <div>
+                  <strong>{label}</strong>
+                  <span>{desc}</span>
+                </div>
+                <span className="settings-toggle-pill">{settings[key] ? "On" : "Off"}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 
 function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onChangePassword, onAdminReset, onAdminCreate, onImageFile, onImageUrl, onLogout, onResetGame }) {
   const [displayName, setDisplayName] = useState(currentUser?.displayName || "");

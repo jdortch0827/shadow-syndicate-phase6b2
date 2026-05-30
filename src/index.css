@@ -4390,3 +4390,126 @@ select {
     font-size: 0.86rem;
   }
 }
+
+/* Phase 1.26 settings + better icon integration */
+.settings-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-hero-card {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.14), rgba(7,7,10,0.86));
+  box-shadow: 0 18px 48px rgba(0,0,0,0.28);
+}
+
+.settings-hero-card img {
+  width: 86px;
+  height: 86px;
+  border-radius: 22px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.34);
+}
+
+.settings-icon-preview {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.settings-icon-preview img {
+  width: 112px;
+  height: 112px;
+  border-radius: 28px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  box-shadow: 0 16px 28px rgba(0,0,0,0.36);
+}
+
+.settings-toggle-list {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: inherit;
+}
+
+.settings-toggle strong,
+.settings-toggle span {
+  display: block;
+}
+
+.settings-toggle span {
+  color: rgba(255,255,255,0.7);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
+.settings-toggle.on {
+  border-color: rgba(245,158,11,0.44);
+  background: linear-gradient(135deg, rgba(245,158,11,0.16), rgba(255,255,255,0.03));
+}
+
+.settings-toggle-pill {
+  min-width: 62px;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(0,0,0,0.36);
+  border: 1px solid rgba(245,158,11,0.32);
+  color: #f7bf52;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (max-width: 720px) {
+  .settings-hero-card,
+  .settings-icon-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-hero-card img,
+  .settings-icon-preview img {
+    justify-self: start;
+  }
+
+  .settings-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-toggle-pill {
+    align-self: flex-start;
+  }
+}
