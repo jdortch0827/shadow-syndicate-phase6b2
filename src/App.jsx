@@ -9,8 +9,8 @@ const SETTINGS_KEY = "shadow_syndicate_settings_v1";
 const ADMIN_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "admin123";
 const ADMIN_DEFAULT_PIN = "0000";
-const APP_PHASE = "Phase 1.26";
-const APP_BUILD_NAME = "Settings, Install Hub & New App Icon";
+const APP_PHASE = "Phase 1.31";
+const APP_BUILD_NAME = "Player Experience Bundle";
 const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
 
 
@@ -1100,6 +1100,9 @@ const startGame = {
   dailyRewardClaimedDate: "",
   dailyStreak: 0,
   lastDailyClaimDate: "",
+  loginRewardClaimedDate: "",
+  loginRewardStreak: 0,
+  introSeen: false,
   cityEventId: "",
   cityEventExpiresAt: 0,
   cityWireMoves: 0,
@@ -1311,6 +1314,31 @@ function getDailyReward(game) {
     respect: 4 + Math.min(6, Math.floor(streak / 2)),
     skillPoints: streakBonus ? 1 : 0,
   };
+}
+
+function isLoginRewardClaimed(game) {
+  return game.loginRewardClaimedDate === getTodayKey();
+}
+
+function getLoginReward(game) {
+  const streak = Number(game.loginRewardStreak || 0);
+  const milestone = streak > 0 && (streak + 1) % 5 === 0;
+
+  return {
+    cash: 900 + streak * 125,
+    energy: 60,
+    respect: 3 + Math.min(7, Math.floor(streak / 2)),
+    skillPoints: milestone ? 1 : 0,
+  };
+}
+
+function getRewardText(reward) {
+  const parts = [];
+  if (reward.cash) parts.push(money(reward.cash));
+  if (reward.energy) parts.push(`+${reward.energy} Energy`);
+  if (reward.respect) parts.push(`+${reward.respect} Respect`);
+  if (reward.skillPoints) parts.push(`+${reward.skillPoints} Skill Point${reward.skillPoints === 1 ? "" : "s"}`);
+  return parts.join(" • ");
 }
 
 function getActiveStreetOpportunity(game) {
@@ -2482,6 +2510,8 @@ export default function App() {
   const dailyComplete = dailyOrders.every((order) => order.done);
   const dailyClaimed = isDailyRewardClaimed(game);
   const dailyReward = getDailyReward(game);
+  const loginReward = getLoginReward(game);
+  const loginRewardClaimed = isLoginRewardClaimed(game);
   const activeStreetOpportunity = getActiveStreetOpportunity(game);
   const cityWireLeadLabel = getStreetOpportunityLabel(game);
   const cityWireExpired = Boolean(game.cityEventId) && !activeStreetOpportunity;
@@ -4059,6 +4089,27 @@ export default function App() {
     setTab("command");
   }
 
+  function claimLoginReward() {
+    setGame((old) => {
+      const today = getTodayKey();
+      if (old.loginRewardClaimedDate === today) return addLog(old, "Daily login reward has already been claimed today.");
+
+      const reward = getLoginReward(old);
+      const yesterday = getYesterdayKey();
+      const streak = old.loginRewardClaimedDate === yesterday ? Number(old.loginRewardStreak || 0) + 1 : 1;
+
+      return addLog({
+        ...old,
+        cash: Number(old.cash || 0) + reward.cash,
+        energy: Math.min(Number(old.maxEnergy || 100) + 200, Number(old.energy || 0) + reward.energy),
+        respect: Number(old.respect || 0) + reward.respect,
+        skillPoints: Number(old.skillPoints || 0) + reward.skillPoints,
+        loginRewardClaimedDate: today,
+        loginRewardStreak: streak,
+      }, `Login reward claimed. ${getRewardText(reward)}.`);
+    });
+  }
+
   function districtName(id) {
     return getDistrictName(id);
   }
@@ -4414,12 +4465,27 @@ export default function App() {
         <section className="main-panel">
           {tab === "command" && (
             <Panel title="Command Center" sub="Choose your next move and keep the city moving in your direction.">
+              <NewPlayerIntroCard
+                bossName={game.bossName}
+                bossClass={bossClass}
+                district={districtName(game.startingDistrictId || "docks")}
+                firstMoves={firstMoves}
+                onNavigate={setTab}
+              />
+
               <FirstMovesPanel
                 moves={firstMoves}
                 complete={firstMovesComplete}
                 claimed={firstMovesRewardClaimed}
                 onClaim={claimFirstMovesReward}
                 onNavigate={setTab}
+              />
+
+              <LoginRewardSummaryCard
+                reward={loginReward}
+                claimed={loginRewardClaimed}
+                streak={game.loginRewardStreak || 0}
+                onClaim={claimLoginReward}
               />
 
               <DailyOrdersSummaryCard
@@ -4915,6 +4981,12 @@ export default function App() {
             </Panel>
           )}
 
+          {tab === "more" && (
+            <Panel title="More" sub="All city systems in one cleaner mobile menu.">
+              <MoreMenuPanel cards={pageCards} onNavigate={setTab} />
+            </Panel>
+          )}
+
           {tab === "settings" && (
             <Panel title="Settings & Install" sub="Tune your local game experience, install behavior, and quick quality-of-life options.">
               <SettingsPanel
@@ -4957,6 +5029,7 @@ export default function App() {
             <Info label="Boss Class" value={bossClass.name} />
             <Info label="Campaign" value={`${campaignClaimedCount}/${campaignChapters.length} chapters`} />
             <Info label="Daily Orders" value={dailyClaimed ? `Claimed • ${game.dailyStreak || 0} streak` : `${dailyOrders.filter((order) => order.done).length}/${dailyOrders.length} complete`} />
+            <Info label="Login Reward" value={loginRewardClaimed ? `Claimed • ${game.loginRewardStreak || 0} streak` : getRewardText(loginReward)} />
             <Info label="Concrete Pour" value={`${game.liveEventInfluence || 0} Influence / Rank #${liveEventRank}`} />
             <Info label="Event Phase" value={liveEventPhase.eventIsActive ? liveEventPhase.name : "Ended"} />
             <Info label="Skill Points" value={`${game.skillPoints || 0} unspent / ${skillStats.totalRanks} ranks`} />
@@ -5007,20 +5080,12 @@ export default function App() {
       <nav className="bottom-nav">
         {[
           ["command", "Home"],
-          ["daily", "Daily"],
-          ["event", "Event"],
           ["jobs", "Jobs"],
           ["territory", "Turf"],
           ["rivals", "Fight"],
-          ["heat", "Heat"],
           ["crew", "Crew"],
-          ["market", "Market"],
-          ["safehouse", "Base"],
-          ["contacts", "Contacts"],
-          ["lieutenants", "Lts"],
-          ["vault", "Vault"],
+          ["more", "More"],
           ["account", "Acct"],
-          ["settings", "Set"],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} className={tab === id ? "active" : ""}>
             {label}
@@ -5252,6 +5317,74 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function NewPlayerIntroCard({ bossName, bossClass, district, firstMoves, onNavigate }) {
+  const nextMove = firstMoves.find((move) => !move.done) || firstMoves[0];
+  return (
+    <section className="new-player-intro-card">
+      <div className="intro-copy">
+        <p className="kicker">First Night in the City</p>
+        <h3>{bossName || "Boss"}, the city just learned your name.</h3>
+        <p>Class: <strong>{bossClass.name}</strong> • Starting turf: <strong>{district}</strong></p>
+        <p className="soft-text">Your first goal is simple: make a move, earn money, and let the streets know this is not just another crew.</p>
+      </div>
+      <div className="intro-action-card">
+        <span>Next Move</span>
+        <strong>{nextMove?.label || "Run your first job"}</strong>
+        <button type="button" className="primary" onClick={() => onNavigate(nextMove?.action || "jobs")}>Start Move</button>
+      </div>
+    </section>
+  );
+}
+
+function LoginRewardSummaryCard({ reward, claimed, streak, onClaim }) {
+  return (
+    <section className={`login-reward-card ${claimed ? "claimed" : "ready"}`}>
+      <div>
+        <p className="kicker">Daily Login Reward</p>
+        <h3>{claimed ? "Reward claimed for today" : "Claim today&apos;s street payout"}</h3>
+        <p className="soft-text">Current login streak: {streak || 0} day{Number(streak || 0) === 1 ? "" : "s"}</p>
+        <p>{getRewardText(reward)}</p>
+      </div>
+      <button className="primary" type="button" disabled={claimed} onClick={onClaim}>
+        {claimed ? "Claimed" : "Claim Reward"}
+      </button>
+    </section>
+  );
+}
+
+function MoreMenuPanel({ cards, onNavigate }) {
+  const grouped = [
+    ["Progress", ["daily", "campaign", "event", "skills"]],
+    ["Empire", ["safehouse", "properties", "vault", "market"]],
+    ["People", ["crew", "contacts", "lieutenants"]],
+    ["Pressure", ["heat", "revenge", "wire", "clinic"]],
+    ["System", ["settings"]],
+  ];
+
+  const byTab = Object.fromEntries(cards.map((card) => [card.tab, card]));
+
+  return (
+    <div className="more-menu-panel">
+      {grouped.map(([group, tabs]) => (
+        <section key={group} className="more-menu-group">
+          <h3>{group}</h3>
+          <div className="more-menu-grid">
+            {tabs.map((tab) => {
+              const card = byTab[tab] || { tab, title: tab, desc: "Open section" };
+              return (
+                <button key={tab} type="button" className="more-menu-button" onClick={() => onNavigate(tab)}>
+                  <strong>{card.title}</strong>
+                  <span>{card.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
