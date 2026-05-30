@@ -9,8 +9,8 @@ const SETTINGS_KEY = "shadow_syndicate_settings_v1";
 const ADMIN_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "admin123";
 const ADMIN_DEFAULT_PIN = "0000";
-const APP_PHASE = "Phase 1.31";
-const APP_BUILD_NAME = "Player Experience Bundle";
+const APP_PHASE = "Phase 1.36";
+const APP_BUILD_NAME = "Mission, Reward, Rank & City Polish";
 const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
 
 
@@ -749,6 +749,18 @@ const campaign = [
 
 const pageCards = [
   {
+    tab: "missions",
+    title: "Mission Board",
+    image: "/art/pages/city-wire.jpg",
+    desc: "See the best next move, daily orders, campaign goals, City Wire leads, and event objectives in one place.",
+  },
+  {
+    tab: "rewards",
+    title: "Rewards",
+    image: "/icon-192.png",
+    desc: "Review recent gains, rank progress, daily rewards, and what actions are paying off.",
+  },
+  {
     tab: "daily",
     title: "Daily Orders",
     image: "/art/pages/city-wire.jpg",
@@ -1115,6 +1127,37 @@ const startGame = {
   chapterRewards: { firstMoves: false, chapterOne: false, chapterTwo: false, chapterThree: false, chapterFour: false },
   log: ["Welcome to Shadow Syndicate. Build your crew. Claim your city. Rule the underworld."],
 };
+
+
+function getBossRank(game, cityControl = 0) {
+  const level = Number(game.level || 1);
+  const respect = Number(game.respect || 0);
+  const wins = Number(game.wins || 0);
+  const fronts = Object.values(game.properties || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const score = level * 12 + respect + wins * 4 + cityControl * 2 + fronts * 8;
+
+  if (score >= 500) return { title: "Underworld Legend", tier: 7, next: "The city already knows your name. Keep expanding.", progress: 100 };
+  if (score >= 360) return { title: "City Power", tier: 6, next: "Push toward full city ownership.", progress: Math.round(((score - 360) / 140) * 100) };
+  if (score >= 250) return { title: "District Kingpin", tier: 5, next: "Turn strongholds into owned districts.", progress: Math.round(((score - 250) / 110) * 100) };
+  if (score >= 160) return { title: "Neighborhood Shot Caller", tier: 4, next: "Build fronts and beat rival pressure.", progress: Math.round(((score - 160) / 90) * 100) };
+  if (score >= 90) return { title: "Crew Boss", tier: 3, next: "Recruit, train, and win your first fights.", progress: Math.round(((score - 90) / 70) * 100) };
+  if (score >= 35) return { title: "Street Runner", tier: 2, next: "Run jobs and start taking turf.", progress: Math.round(((score - 35) / 55) * 100) };
+  return { title: "Nobody", tier: 1, next: "Run your first job and make the city notice.", progress: Math.round((score / 35) * 100) };
+}
+
+function getRecommendedMove(game, dailyOrders, activeStreetOpportunity, nextCampaignChapter, heat, topRivalThreat) {
+  if (!game.started) return { title: "Create your boss", tab: "command", detail: "Finish your identity and enter the city." };
+  if (game.jobsRun < 1) return { title: "Run your first job", tab: "jobs", detail: "Jobs build cash, XP, and control." };
+  if (!isLoginRewardClaimed(game)) return { title: "Claim login reward", tab: "command", detail: "Free daily cash, energy, and respect are waiting." };
+  const openDaily = dailyOrders.find((order) => !order.done);
+  if (openDaily) return { title: openDaily.label, tab: openDaily.action || "daily", detail: "This daily order keeps your streak moving." };
+  if (activeStreetOpportunity) return { title: "Resolve City Wire lead", tab: "wire", detail: "Temporary street leads go cold if ignored." };
+  if (heat >= 70) return { title: "Cool Street Heat", tab: "heat", detail: "Heat is high enough to hurt payouts and trigger problems." };
+  if (topRivalThreat?.pressure >= 65) return { title: "Lower rival pressure", tab: "revenge", detail: "A rival hit is getting too close." };
+  if (nextCampaignChapter && !nextCampaignChapter.claimed) return { title: nextCampaignChapter.title, tab: "campaign", detail: "Push the story forward and claim bigger rewards." };
+  return { title: "Expand turf", tab: "territory", detail: "Control more districts and unlock stronger income." };
+}
+
 
 function money(value) {
   return `$${Math.round(value || 0).toLocaleString()}`;
@@ -2512,6 +2555,8 @@ export default function App() {
   const dailyReward = getDailyReward(game);
   const loginReward = getLoginReward(game);
   const loginRewardClaimed = isLoginRewardClaimed(game);
+  const bossRank = getBossRank(game, cityControl);
+  const recentRewards = (game.log || []).slice(0, 6);
   const activeStreetOpportunity = getActiveStreetOpportunity(game);
   const cityWireLeadLabel = getStreetOpportunityLabel(game);
   const cityWireExpired = Boolean(game.cityEventId) && !activeStreetOpportunity;
@@ -2520,6 +2565,7 @@ export default function App() {
   const liveEventRank = liveEventLeaderboard.find((row) => row.isPlayer)?.rank || liveEventLeaderboard.length;
   const liveEventMilestoneReady = Number(game.liveEventInfluence || 0) >= liveEvent.milestoneInfluence;
   const liveEventMilestoneClaimed = Boolean(game.liveEventRewards?.concretePourMilestone);
+  const recommendedMove = getRecommendedMove(game, dailyOrders, activeStreetOpportunity, nextCampaignChapter, heat, topRivalThreat);
 
   useEffect(() => {
     if (!session?.username) return;
@@ -4433,6 +4479,8 @@ export default function App() {
       <nav className="main-nav">
         {[
           ["command", "Command"],
+          ["missions", "Mission Board"],
+          ["rewards", "Rewards"],
           ["daily", "Daily"],
           ["event", "Event"],
           ["heat", "Heat"],
@@ -4472,6 +4520,17 @@ export default function App() {
                 firstMoves={firstMoves}
                 onNavigate={setTab}
               />
+
+              <MissionBoardSummaryCard
+                recommended={recommendedMove}
+                dailyOrders={dailyOrders}
+                activeLead={activeStreetOpportunity}
+                nextChapter={nextCampaignChapter}
+                liveEventPhase={liveEventPhase}
+                onNavigate={setTab}
+              />
+
+              <BossRankSummaryCard rank={bossRank} game={game} cityControl={cityControl} onOpen={() => setTab("rewards")} />
 
               <FirstMovesPanel
                 moves={firstMoves}
@@ -4764,6 +4823,15 @@ export default function App() {
                 nextTargetControl={game.territory?.[nextTurfTarget.id] || 0}
               />
 
+              <DistrictVisualOverview
+                districts={districts}
+                game={game}
+                bossClass={bossClass}
+                crewLoyalty={crewLoyalty}
+                skillStats={skillStats}
+                onNavigate={setTab}
+              />
+
               <div className="card-grid">
                 {districts.map((district) => {
                   const control = game.territory[district.id] || 0;
@@ -4981,6 +5049,40 @@ export default function App() {
             </Panel>
           )}
 
+
+          {tab === "missions" && (
+            <Panel title="Mission Board" sub="One board for the next best move, daily orders, campaign progress, city leads, and event pressure.">
+              <MissionBoardPanel
+                recommended={recommendedMove}
+                dailyOrders={dailyOrders}
+                activeLead={activeStreetOpportunity}
+                leadLabel={cityWireLeadLabel}
+                nextChapter={nextCampaignChapter}
+                liveEventPhase={liveEventPhase}
+                firstMoves={firstMoves}
+                onNavigate={setTab}
+              />
+            </Panel>
+          )}
+
+          {tab === "rewards" && (
+            <Panel title="Rewards & Rank" sub="Clearer feedback for what your actions are earning and how your boss is growing.">
+              <RewardFeedbackPanel
+                rank={bossRank}
+                recentRewards={recentRewards}
+                loginReward={loginReward}
+                loginRewardClaimed={loginRewardClaimed}
+                loginStreak={game.loginRewardStreak || 0}
+                cash={game.cash}
+                xp={game.xp}
+                level={game.level}
+                respect={game.respect || 0}
+                cityControl={cityControl}
+                onClaimLogin={claimLoginReward}
+              />
+            </Panel>
+          )}
+
           {tab === "more" && (
             <Panel title="More" sub="All city systems in one cleaner mobile menu.">
               <MoreMenuPanel cards={pageCards} onNavigate={setTab} />
@@ -5024,6 +5126,8 @@ export default function App() {
         <aside className="sidebar">
           <Panel title="Empire Status">
             <Info label="Build" value={APP_BUILD_LABEL} />
+            <Info label="Boss Rank" value={bossRank.title} />
+            <Info label="Recommended Move" value={recommendedMove.title} />
             <Info label="App Install" value={isInstalled ? "Installed" : installReady ? "Ready" : "Browser only"} />
             <Info label="Settings" value={`${settings.musicOn ? "Music On" : "Music Off"} • ${settings.sfxOn ? "SFX On" : "SFX Off"}`} />
             <Info label="Boss Class" value={bossClass.name} />
@@ -5356,9 +5460,186 @@ function LoginRewardSummaryCard({ reward, claimed, streak, onClaim }) {
   );
 }
 
+
+function MissionBoardSummaryCard({ recommended, dailyOrders, activeLead, nextChapter, liveEventPhase, onNavigate }) {
+  const doneDaily = dailyOrders.filter((order) => order.done).length;
+  return (
+    <section className="mission-board-summary">
+      <div>
+        <p className="kicker">Mission Board</p>
+        <h3>{recommended.title}</h3>
+        <p>{recommended.detail}</p>
+      </div>
+      <div className="mission-mini-grid">
+        <span>Daily <strong>{doneDaily}/{dailyOrders.length}</strong></span>
+        <span>Lead <strong>{activeLead ? "Open" : "None"}</strong></span>
+        <span>Story <strong>{nextChapter?.claimed ? "Claimed" : "Open"}</strong></span>
+        <span>Event <strong>{liveEventPhase.eventIsActive ? liveEventPhase.name : "Ended"}</strong></span>
+      </div>
+      <button className="primary" type="button" onClick={() => onNavigate(recommended.tab)}>Go Now</button>
+    </section>
+  );
+}
+
+function BossRankSummaryCard({ rank, game, cityControl, onOpen }) {
+  return (
+    <section className="boss-rank-card">
+      <div>
+        <p className="kicker">Boss Rank</p>
+        <h3>{rank.title}</h3>
+        <p>{rank.next}</p>
+      </div>
+      <div className="boss-rank-stats">
+        <Info label="Level" value={game.level} />
+        <Info label="Respect" value={game.respect || 0} />
+        <Info label="City Control" value={`${cityControl}%`} />
+      </div>
+      <Progress label="Next Rank" value={rank.progress} max={100} />
+      <button className="secondary" type="button" onClick={onOpen}>Open Rewards</button>
+    </section>
+  );
+}
+
+function MissionBoardPanel({ recommended, dailyOrders, activeLead, leadLabel, nextChapter, liveEventPhase, firstMoves, onNavigate }) {
+  return (
+    <div className="mission-board-panel">
+      <section className="mission-hero">
+        <div>
+          <p className="kicker">Recommended Next Move</p>
+          <h3>{recommended.title}</h3>
+          <p>{recommended.detail}</p>
+        </div>
+        <button className="primary" type="button" onClick={() => onNavigate(recommended.tab)}>Go to Move</button>
+      </section>
+
+      <div className="mission-board-grid">
+        <section className="account-box">
+          <h3>First Moves</h3>
+          {firstMoves.map((move) => (
+            <button key={move.id} className={`mission-row ${move.done ? "done" : ""}`} onClick={() => onNavigate(move.action || "command")}>
+              <span>{move.label}</span>
+              <strong>{move.done ? "Done" : "Open"}</strong>
+            </button>
+          ))}
+        </section>
+
+        <section className="account-box">
+          <h3>Daily Orders</h3>
+          {dailyOrders.map((order) => (
+            <button key={order.id} className={`mission-row ${order.done ? "done" : ""}`} onClick={() => onNavigate(order.action || "daily")}>
+              <span>{order.label}</span>
+              <strong>{order.done ? "Done" : "Open"}</strong>
+            </button>
+          ))}
+        </section>
+
+        <section className="account-box">
+          <h3>Campaign</h3>
+          <p className="soft-text">{nextChapter?.title || "Campaign ready"}</p>
+          <p>{nextChapter?.claimed ? "Current chapter reward has been claimed." : "Finish chapter goals to claim the next story reward."}</p>
+          <button className="secondary" type="button" onClick={() => onNavigate("campaign")}>Open Campaign</button>
+        </section>
+
+        <section className="account-box">
+          <h3>City Wire / Event</h3>
+          <p className="soft-text">{activeLead ? leadLabel : "No active street lead."}</p>
+          <p>{liveEventPhase.eventIsActive ? `Concrete Pour: ${liveEventPhase.name}` : "Current live event has ended."}</p>
+          <div className="button-row compact-row">
+            <button className="secondary" type="button" onClick={() => onNavigate("wire")}>City Wire</button>
+            <button className="secondary" type="button" onClick={() => onNavigate("event")}>Event</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function RewardFeedbackPanel({ rank, recentRewards, loginReward, loginRewardClaimed, loginStreak, cash, xp, level, respect, cityControl, onClaimLogin }) {
+  return (
+    <div className="reward-feedback-panel">
+      <section className="mission-hero reward-hero">
+        <div>
+          <p className="kicker">Boss Rank</p>
+          <h3>{rank.title}</h3>
+          <p>{rank.next}</p>
+        </div>
+        <div className="reward-stat-stack">
+          <Info label="Level" value={level} />
+          <Info label="Cash" value={money(cash)} />
+          <Info label="XP" value={xp} />
+          <Info label="Respect" value={respect} />
+          <Info label="City Control" value={`${cityControl}%`} />
+        </div>
+      </section>
+
+      <section className="account-box">
+        <h3>Daily Login Reward</h3>
+        <p className="soft-text">Streak: {loginStreak} day{Number(loginStreak) === 1 ? "" : "s"}</p>
+        <p>{getRewardText(loginReward)}</p>
+        <button className="primary" type="button" disabled={loginRewardClaimed} onClick={onClaimLogin}>
+          {loginRewardClaimed ? "Claimed Today" : "Claim Login Reward"}
+        </button>
+      </section>
+
+      <section className="account-box full-span">
+        <h3>Recent Reward Feedback</h3>
+        <div className="reward-log-list">
+          {recentRewards.map((line, index) => (
+            <div key={`${line}-${index}`} className="reward-log-row">
+              <strong>{index === 0 ? "Latest" : `Move ${index + 1}`}</strong>
+              <span>{line}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate }) {
+  return (
+    <section className="district-visual-overview">
+      <div className="section-heading-row">
+        <div>
+          <p className="kicker">City Map</p>
+          <h3>District Visual Control</h3>
+        </div>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("properties")}>Open Fronts</button>
+      </div>
+      <div className="district-visual-grid">
+        {districts.map((district) => {
+          const control = game.territory[district.id] || 0;
+          const tier = getControlTier(control);
+          const tribute = getDistrictTribute(district, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
+          const ownedFronts = properties.filter((property) => property.district === district.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
+          const pressure = rivals.filter((rival) => rival.district === district.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
+          return (
+            <article key={district.id} className="district-visual-card">
+              <div className="district-visual-top">
+                <strong>{district.name}</strong>
+                <span>{tier.label}</span>
+              </div>
+              <Progress label="Control" value={control} max={100} />
+              <div className="district-visual-stats">
+                <span>Tribute <strong>{control >= 25 ? money(tribute) : "Locked"}</strong></span>
+                <span>Fronts <strong>{ownedFronts}</strong></span>
+                <span>Rival Heat <strong>{pressure}/100</strong></span>
+                <span>Risk <strong>{district.risk}</strong></span>
+              </div>
+              <p className="soft-text">{control < 25 ? "Recommended: expand control until tribute unlocks." : control < 75 ? "Recommended: push toward stronghold status." : "Recommended: hold the district and collect tribute."}</p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+
+
 function MoreMenuPanel({ cards, onNavigate }) {
   const grouped = [
-    ["Progress", ["daily", "campaign", "event", "skills"]],
+    ["Progress", ["missions", "rewards", "daily", "campaign", "event", "skills"]],
     ["Empire", ["safehouse", "properties", "vault", "market"]],
     ["People", ["crew", "contacts", "lieutenants"]],
     ["Pressure", ["heat", "revenge", "wire", "clinic"]],
