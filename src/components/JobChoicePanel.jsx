@@ -1,3 +1,4 @@
+import React from "react";
 export default function JobChoicePanel({ choices = [], selected, onSelect }) {
   return (
     <div className="job-choice-panel">

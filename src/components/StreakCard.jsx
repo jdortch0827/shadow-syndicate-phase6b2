@@ -1,3 +1,4 @@
+import React from "react";
 export default function StreakCard({ streaks = [] }) {
   if (!streaks.length) return null;
   return (

@@ -1,3 +1,4 @@
+import React from "react";
 export default function StorePrompt({ prompt, onOpen, onDismiss }) {
   if (!prompt) return null;
   return (

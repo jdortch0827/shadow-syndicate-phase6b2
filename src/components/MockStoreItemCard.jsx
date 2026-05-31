@@ -1,3 +1,4 @@
+import React from "react";
 export default function MockStoreItemCard({ item, tribute = 0, owned = 0, onPurchase }) {
   const blocked = Number(tribute || 0) < Number(item.costTribute || 0);
   const missing = Math.max(0, Number(item.costTribute || 0) - Number(tribute || 0));

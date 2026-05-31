@@ -1,3 +1,4 @@
+import React from "react";
 export default function PlayerQuickStats({ stats = [], children }) {
   const visible = stats.filter(Boolean);
   return (

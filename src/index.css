@@ -5630,14 +5630,15 @@ select {
 .empty-state-card { display: grid; gap: 10px; margin: 14px 0; }
 .requirement-list { display: grid; gap: 6px; padding-left: 18px; color: rgba(255,255,255,0.78); }
 .while-away-card {
-  position: fixed;
-  z-index: 80;
-  left: 50%;
-  bottom: 108px;
-  transform: translateX(-50%);
-  width: min(560px, calc(100% - 22px));
+  position: static;
+  z-index: auto;
+  transform: none;
+  width: 100%;
   display: grid;
-  gap: 12px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
 }
 .result-detail-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .result-detail-list span {
@@ -5674,7 +5675,9 @@ select {
   padding: 0.8rem 0.9rem;
 }
 @media (max-width: 640px) {
-  .while-away-card { bottom: 86px; }
+  .while-away-card { grid-template-columns: 1fr; }
+  .while-away-card .button-row { width: 100%; }
+  .while-away-card .button-row button { flex: 1; }
   .rival-history-grid { grid-template-columns: 1fr; }
 }
 
@@ -5837,4 +5840,46 @@ select {
   .player-quick-stats .health-stat-card {
     grid-column: 1 / -1;
   }
+}
+
+
+/* Phase 1.50B Home layout hotfix */
+.home-alert-strip {
+  width: min(1180px, calc(100% - 24px));
+  margin: 14px auto 0;
+}
+.home-alert-strip:empty {
+  display: none;
+}
+.player-quick-stats.simplified-hud {
+  width: min(1180px, calc(100% - 24px));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+.player-quick-stats .stat {
+  min-height: 112px;
+  padding: 12px 14px;
+}
+.player-quick-stats .stat strong {
+  font-size: clamp(1.35rem, 2.4vw, 1.95rem);
+  line-height: 1.04;
+}
+.player-quick-stats .health-stat {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+.player-quick-stats .health-stat .mini-heal-button {
+  margin-top: 4px;
+  width: fit-content;
+  min-width: 74px;
+}
+@media (max-width: 980px) {
+  .player-quick-stats.simplified-hud { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .player-quick-stats.simplified-hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .player-quick-stats .stat { min-height: 96px; }
+  .player-quick-stats .health-stat { grid-column: span 2; }
 }

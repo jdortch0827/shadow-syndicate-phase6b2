@@ -1,3 +1,4 @@
+import React from "react";
 export default function BeginnerLayoutToggle({ enabled, onToggle }) {
   return (
     <button type="button" className={`beginner-toggle ${enabled ? 'on' : 'off'}`} onClick={onToggle}>

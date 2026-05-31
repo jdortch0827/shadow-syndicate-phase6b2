@@ -1,3 +1,4 @@
+import React from "react";
 export default function RevengeAlert({ revenge, nemesisCount = 0, onRetaliate, onOpen }) {
   if (!revenge && !nemesisCount) return null;
   const title = revenge ? 'You Got Hit' : 'Nemesis Watching';

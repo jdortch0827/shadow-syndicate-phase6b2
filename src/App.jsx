@@ -5260,7 +5260,6 @@ export default function App() {
       />
       <RewardToast message={rewardToast} onClose={() => setRewardToast(null)} />
       <ActionResultCard result={actionResult} onClose={() => setActionResult(null)} />
-      <WhileYouWereGoneCard event={offlineEvent} onClose={() => setOfflineEvent(null)} onOpenPvp={() => goToTab("pvp")} />
     <div className="app">
       <header className="top-hero">
         <div className="top-hero-overlay">
@@ -5302,6 +5301,10 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      <div className="home-alert-strip">
+        <WhileYouWereGoneCard event={offlineEvent} onClose={() => setOfflineEvent(null)} onOpenPvp={() => goToTab("pvp")} />
+      </div>
 
       <SimplifiedStats stats={coreStats} beginner={beginnerLayoutOn}>
         <HealthStat current={game.health} max={game.maxHealth} cash={game.cash} onHeal={healBoss} />

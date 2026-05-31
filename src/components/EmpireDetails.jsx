@@ -1,3 +1,4 @@
+import React from "react";
 export default function EmpireDetails({ stats = [], defaultOpen = false, onToggle, showToggle = false, homeMode = false }) {
   const details = stats.filter(Boolean);
   return (

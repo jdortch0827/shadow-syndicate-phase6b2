@@ -1,0 +1,12 @@
+Shadow Syndicate Phase 1.50B
+Home Layout Hotfix
+
+This hotfix keeps the Phase 1.50 page extraction work and fixes the Home screen layout issue where the While You Were Gone card overlapped the stat row.
+
+Fixes:
+- While You Were Gone now renders in the normal Home page flow instead of as a fixed overlay.
+- The alert sits cleanly below the hero and above the quick stats.
+- Quick stat cards are tighter and more consistent.
+- Health / Heal card spacing was cleaned up.
+- Phase label updated to Phase 1.50B.
+- Build passed with npm run build.
