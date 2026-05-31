@@ -1,4 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { APP_PHASE, APP_BUILD_NAME, APP_BUILD_LABEL, APP_FULL_PHASE_LABEL } from "./data/phase";
+import { systemUnlocks } from "./data/unlocks";
+import { getFirstSessionRecommendedMove } from "./logic/firstSession";
+import { getFirstNightProgress } from "./data/firstNightChecklist";
+import { getClinicOptions } from "./logic/clinic";
+import { getDynamicStreetChatFeed } from "./logic/streetChat";
+import { getBalanceSnapshot } from "./logic/balance";
+import SafeImage from "./components/SafeImage";
+import ErrorBoundary from "./components/ErrorBoundary";
+import RewardToast from "./components/RewardToast";
+import FirstNightChecklist from "./components/FirstNightChecklist";
+import ClinicOptions from "./components/ClinicOptions";
+import ActionResultCard from "./components/ActionResultCard";
+import PvpHub from "./pages/PvpHub";
+import { mockPlayers } from "./data/mockPlayers";
+import { pvpBounties } from "./data/pvpBounties";
+import { calculatePowerScore, getPublicProfileSummary } from "./logic/powerScore";
+import { defensePostures, simulatePvpAttack, makeAttackLogLine, makeStreetChatLine } from "./logic/pvp";
+import { getNemesisState, updateNemesisMap, getRetaliationRisk } from "./logic/nemesis";
+import { getFrontDamage, getFrontDamageIncomeMultiplier, getFrontRepairCost, damageRandomFront, repairFront as repairFrontLogic } from "./logic/frontDamage";
+import { supportedLanguages } from "./i18n";
+import { makeTranslator, getDirectionForLanguage } from "./logic/language";
+import DisabledReason from "./components/DisabledReason";
+import EmptyState from "./components/EmptyState";
+import RequirementList from "./components/RequirementList";
+import WhileYouWereGoneCard from "./components/WhileYouWereGoneCard";
+import { shouldRunOfflineEvent, simulateOfflineEvent } from "./logic/offlineEvents";
+import { chooseJobOutcome } from "./logic/jobOutcomes";
 
 const SAVE_KEY = "shadow_syndicate_live_source_save_v1";
 const AUTH_USERS_KEY = "shadow_syndicate_auth_users_v1";
@@ -9,11 +37,6 @@ const SETTINGS_KEY = "shadow_syndicate_settings_v1";
 const ADMIN_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "admin123";
 const ADMIN_DEFAULT_PIN = "0000";
-const APP_PHASE = "Phase 1.36";
-const APP_BUILD_NAME = "Mission, Reward, Rank & City Polish";
-const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
-
-
 const bossClasses = [
   {
     id: "boss",
@@ -761,6 +784,42 @@ const pageCards = [
     desc: "Review recent gains, rank progress, daily rewards, and what actions are paying off.",
   },
   {
+    tab: "achievements",
+    title: "Achievements",
+    image: "/icon-512.png",
+    desc: "Track boss milestones, unlocked badges, and long-term progress across the city.",
+  },
+  {
+    tab: "intel",
+    title: "Intel Feed",
+    image: "/art/pages/city-wire.jpg",
+    desc: "A cleaner street feed showing warnings, opportunities, rewards, and your best next move.",
+  },
+  {
+    tab: "contracts",
+    title: "Contracts",
+    image: "/art/pages/revenge-log.jpg",
+    desc: "Pick from short underworld contracts that point players toward jobs, turf, rivals, fronts, and heat control.",
+  },
+  {
+    tab: "timeline",
+    title: "City Timeline",
+    image: "/art/pages/city-wire.jpg",
+    desc: "See cooldowns, live timers, daily reset pressure, and what is coming due next.",
+  },
+  {
+    tab: "brief",
+    title: "Operations Brief",
+    image: "/art/gear/war-room.png",
+    desc: "A cleaner boss briefing that summarizes danger, money, people, and the next three priorities.",
+  },
+  {
+    tab: "balance",
+    title: "Balance Panel",
+    image: "/art/gear/war-room.png",
+    desc: "Developer view for cash, income, heat, rivals, unlocks, and first-session balance checks.",
+  },
+  {
     tab: "daily",
     title: "Daily Orders",
     image: "/art/pages/city-wire.jpg",
@@ -851,6 +910,12 @@ const pageCards = [
     desc: "Patch up your boss before the next hit.",
   },
   {
+    tab: "pvp",
+    title: "PvP Hub",
+    image: "/icon-192.png",
+    desc: "Find targets, build grudges, set defense, track revenge, and test multiplayer-style hits locally.",
+  },
+  {
     tab: "wire",
     title: "City Wire",
     image: "/art/pages/city-wire.jpg",
@@ -861,6 +926,12 @@ const pageCards = [
     title: "Settings",
     image: "/icon-192.png",
     desc: "Tune your game, app install behavior, and quality-of-life preferences.",
+  },
+  {
+    tab: "account",
+    title: "Account",
+    image: "/icon-192.png",
+    desc: "Manage sign-in, password, admin tools, profile image, and save controls.",
   },
 ];
 
@@ -1049,6 +1120,9 @@ const defaultTerritory = Object.fromEntries(districts.map((d) => [d.id, d.contro
 
 const startGame = {
   started: false,
+  saveVersion: 3,
+  playerId: "local-player",
+  crewName: "Rookie Crew",
   profileComplete: false,
   bossName: "Rookie",
   classId: "boss",
@@ -1125,6 +1199,29 @@ const startGame = {
   liveEventDeputized: false,
   liveEventRewards: { concretePourMilestone: false },
   chapterRewards: { firstMoves: false, chapterOne: false, chapterTwo: false, chapterThree: false, chapterFour: false },
+  lastActionResult: null,
+  devPanelVisible: false,
+  pvpDefensePosture: "balanced",
+  pvpAttackLog: [],
+  pvpRevengeList: [],
+  pvpGrudges: {},
+  pvpBountyProgress: {},
+  pvpBountiesClaimed: {},
+  pvpCashStolen: 0,
+  pvpRevengeWins: 0,
+  pvpDefenseWins: 0,
+  pvpRivalHistory: {},
+  pvpNemesisMap: {},
+  pvpRevengeBonuses: {},
+  pvpRetaliationTimers: {},
+  frontDamage: {},
+  offlineEventRecords: [],
+  translationVersion: 1,
+  lastSeenAt: 0,
+  lastOfflineEventAt: 0,
+  lastJobOutcome: "",
+  language: "en",
+  pvpStrongerWins: 0,
   log: ["Welcome to Shadow Syndicate. Build your crew. Claim your city. Rule the underworld."],
 };
 
@@ -1159,8 +1256,208 @@ function getRecommendedMove(game, dailyOrders, activeStreetOpportunity, nextCamp
 }
 
 
+function getAchievementBadges(game, cityControl = 0, bossRank = { title: "Nobody" }) {
+  const ownedFronts = Object.values(game.properties || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const upgradedFronts = Object.values(game.propertyUpgrades || {}).filter((level) => Number(level || 0) > 1).length;
+  const unlockedContacts = Object.values(game.contacts || {}).filter((level) => Number(level || 0) > 0).length;
+  const unlockedLieutenants = Object.values(game.lieutenants || {}).filter(Boolean).length;
+  const achievementList = [
+    { id: "first_job", title: "First Score", desc: "Run your first job.", done: Number(game.jobsRun || 0) >= 1, reward: "+100 Respect memory" },
+    { id: "ten_jobs", title: "Street Routine", desc: "Run 10 total jobs.", done: Number(game.jobsRun || 0) >= 10, reward: "Better rhythm" },
+    { id: "first_win", title: "Made an Example", desc: "Win your first rival fight.", done: Number(game.wins || 0) >= 1, reward: "Rivals notice you" },
+    { id: "crew_ten", title: "Crew Has a Name", desc: "Build a crew of 10 or more.", done: Number(game.crew || 0) >= 10, reward: "More muscle" },
+    { id: "front_owner", title: "Front Owner", desc: "Own your first property front.", done: ownedFronts >= 1, reward: "Empire income" },
+    { id: "front_builder", title: "Upgraded Front", desc: "Upgrade any front past Level 1.", done: upgradedFronts >= 1, reward: "Cleaner money" },
+    { id: "district_hold", title: "Street Grip", desc: "Reach 50% city control.", done: cityControl >= 50, reward: "City influence" },
+    { id: "rank_climb", title: "Name in the City", desc: "Reach Crew Boss rank or higher.", done: bossRank.tier >= 3, reward: bossRank.title },
+    { id: "contact", title: "Friend in the Shadows", desc: "Unlock an underworld contact.", done: unlockedContacts >= 1, reward: "Favors opened" },
+    { id: "lieutenant", title: "Trusted Second", desc: "Recruit a lieutenant.", done: unlockedLieutenants >= 1, reward: "Assignments opened" },
+  ];
+
+  const completed = achievementList.filter((badge) => badge.done).length;
+  return { badges: achievementList, completed, total: achievementList.length };
+}
+
+function getIntelFeed(game, heat, topRivalThreat, cityControl, bossRank, recommendedMove) {
+  const feed = [
+    { type: "Next Move", title: recommendedMove.title, detail: recommendedMove.detail, tab: recommendedMove.tab },
+    { type: "Boss Rank", title: bossRank.title, detail: bossRank.next, tab: "rewards" },
+    { type: "Street Heat", title: heat >= 70 ? "Heat is dangerous" : heat >= 40 ? "Heat is building" : "Heat is manageable", detail: `${heat}/100 Heat. ${heat >= 70 ? "Cool it down before payouts and pressure get worse." : "Keep it controlled while you make moves."}`, tab: "heat" },
+    { type: "Turf", title: `${cityControl}% city control`, detail: cityControl >= 50 ? "You are starting to look like a real city power." : "Push districts until the city map starts turning yours.", tab: "territory" },
+  ];
+
+  if (topRivalThreat) {
+    feed.push({ type: "Rivals", title: topRivalThreat.rival.name, detail: `${topRivalThreat.pressure}/100 pressure. ${topRivalThreat.pressure >= 65 ? "Payback is getting close." : "Still manageable."}`, tab: "revenge" });
+  }
+
+  if (!isDailyRewardClaimed(game)) {
+    feed.push({ type: "Reward", title: "Daily login reward ready", detail: "Claim today’s login reward to keep the streak moving.", tab: "rewards" });
+  }
+
+  return feed;
+}
+
+function getStreetChatFeed(game, heat, topRivalThreat, cityControl, activeStreetOpportunity, recommendedMove) {
+  const bossName = game?.bossName || "Rookie";
+  const crewMood = Number(game?.crewLoyalty ?? 75) >= 70 ? "steady" : Number(game?.crewLoyalty ?? 75) >= 45 ? "restless" : "shaky";
+  const leadLine = activeStreetOpportunity
+    ? `City Wire says ${activeStreetOpportunity.title} is still live. Somebody needs to make a call before it goes cold.`
+    : "No fresh City Wire lead yet. A quick scout could shake something loose.";
+
+  return [
+    { speaker: "Corner Lookout", tag: "Street", line: `Word is ${bossName} is making noise. Next smart move: ${recommendedMove?.title || "keep building"}.` },
+    { speaker: "Backroom Clerk", tag: "Intel", line: leadLine },
+    { speaker: "Old Driver", tag: "Heat", line: heat >= 70 ? "Too many eyes on the corners. Cool the heat before somebody starts knocking." : heat >= 40 ? "Heat is warm, not boiling. Move clean and keep it that way." : "Streets feel quiet. Good time to make money." },
+    { speaker: "Crew Whisper", tag: "Crew", line: `Crew morale feels ${crewMood}. Keep them paid, trained, and useful.` },
+    { speaker: "Numbers Guy", tag: "City", line: cityControl >= 50 ? `You control ${cityControl}% of the city. People are starting to use your name carefully.` : `Only ${cityControl}% of the city is yours. Turf is still the main road to power.` },
+    topRivalThreat
+      ? { speaker: "Sidewalk Runner", tag: "Rivals", line: `${topRivalThreat.rival.name} is sitting at ${topRivalThreat.pressure}/100 pressure. Ignore that too long and they may hit back.` }
+      : { speaker: "Sidewalk Runner", tag: "Rivals", line: "No one crew is screaming for payback right now. That can change fast." },
+  ];
+}
+
+function getContractBoard(game, heat, cityControl, topRivalThreat, nextTurfTarget, activeStreetOpportunity) {
+  const ownedFronts = Object.values(game.properties || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const contracts = [
+    {
+      id: "street_cash",
+      title: "Street Cash Run",
+      type: "Starter Contract",
+      tab: "jobs",
+      ready: Number(game.energy || 0) >= 4,
+      reward: "Cash, XP, and district control",
+      risk: heat >= 65 ? "High Heat" : "Manageable",
+      detail: "Run a job to keep money moving and build your name without adding another system to learn.",
+    },
+    {
+      id: "turf_push",
+      title: `Push ${nextTurfTarget?.name || "Turf"}`,
+      type: "Turf Contract",
+      tab: "territory",
+      ready: Number(game.energy || 0) >= Number(nextTurfTarget?.energy || 5),
+      reward: "District control and future tribute",
+      risk: "Rival attention",
+      detail: `Recommended target: ${nextTurfTarget?.name || "the next district"}. Push control until tribute and fronts start paying better.`,
+    },
+    {
+      id: "front_money",
+      title: ownedFronts > 0 ? "Upgrade a Front" : "Buy a First Front",
+      type: "Empire Contract",
+      tab: "properties",
+      ready: ownedFronts > 0 ? Number(game.cash || 0) >= 600 : Number(game.cash || 0) >= 900,
+      reward: "Better income and rank progress",
+      risk: "+Heat",
+      detail: ownedFronts > 0 ? "Upgrade a property front so your empire earns more while you play." : "Buy your first property front to start building passive income.",
+    },
+    {
+      id: "quiet_city",
+      title: heat >= 45 ? "Quiet the Streets" : "Keep Heat Low",
+      type: "Risk Contract",
+      tab: "heat",
+      ready: Number(game.energy || 0) >= 8 || Number(game.cash || 0) >= 500,
+      reward: "Lower pressure and safer payouts",
+      risk: "Costs cash, crew, or energy",
+      detail: heat >= 45 ? "Heat is getting loud. Cool it before the city starts pushing back." : "Heat is under control. Keep it that way while you grow.",
+    },
+    {
+      id: "payback_check",
+      title: topRivalThreat?.pressure >= 40 ? "Handle Rival Pressure" : "Scout Rival Noise",
+      type: "Rival Contract",
+      tab: topRivalThreat?.pressure >= 40 ? "revenge" : "rivals",
+      ready: true,
+      reward: "Safer streets and fight progress",
+      risk: topRivalThreat?.pressure >= 65 ? "Payback close" : "Street risk",
+      detail: topRivalThreat ? `${topRivalThreat.rival.name} is at ${topRivalThreat.pressure}/100 pressure.` : "No major rival threat is leading the board yet.",
+    },
+  ];
+
+  if (activeStreetOpportunity) {
+    contracts.unshift({
+      id: "wire_lead",
+      title: "Resolve Hot City Wire Lead",
+      type: "Timed Contract",
+      tab: "wire",
+      ready: true,
+      reward: "Choice reward before the lead goes cold",
+      risk: "Timer expires",
+      detail: "A temporary City Wire lead is active. Handle it before the street moves on.",
+    });
+  }
+
+  const readyCount = contracts.filter((contract) => contract.ready).length;
+  return { contracts, readyCount, total: contracts.length };
+}
+
+function getCityTimeline(game, liveEventPhase, activeStreetOpportunity, cityWireExpired, dailyClaimed, loginRewardClaimed) {
+  const now = Date.now();
+  const activeLeadMs = activeStreetOpportunity ? Math.max(0, Number(game.cityEventExpiresAt || 0) - now) : 0;
+  const eventMs = liveEventPhase?.eventIsActive ? Math.max(0, Number(liveEventPhase.eventEndsAt || 0) - now) : 0;
+  const timeline = [
+    {
+      title: loginRewardClaimed ? "Login reward claimed" : "Login reward ready",
+      status: loginRewardClaimed ? "Complete" : "Ready",
+      detail: loginRewardClaimed ? "Come back tomorrow to keep the streak alive." : "Claim the free login reward before making your first move.",
+      tab: "rewards",
+    },
+    {
+      title: dailyClaimed ? "Daily orders complete" : "Daily orders open",
+      status: dailyClaimed ? "Complete" : "Open",
+      detail: dailyClaimed ? `Current daily streak: ${game.dailyStreak || 0}.` : "Finish the daily orders to claim the daily payout.",
+      tab: "daily",
+    },
+    {
+      title: activeStreetOpportunity ? "City Wire lead active" : cityWireExpired ? "City Wire lead expired" : "City Wire scout available",
+      status: activeStreetOpportunity ? formatEventTime(activeLeadMs) : cityWireExpired ? "Expired" : "Ready",
+      detail: activeStreetOpportunity ? "Resolve the lead before it goes cold." : "Scout the City Wire when you want a temporary opportunity.",
+      tab: "wire",
+    },
+    {
+      title: liveEventPhase?.eventIsActive ? `${liveEvent.shortName} event active` : `${liveEvent.shortName} event ended`,
+      status: liveEventPhase?.eventIsActive ? formatEventTime(eventMs) : "Ended",
+      detail: liveEventPhase?.eventIsActive ? `${liveEventPhase.name} phase is active.` : "Keep the event structure ready for the next live operation.",
+      tab: "event",
+    },
+    {
+      title: "Front income tick",
+      status: "Every minute",
+      detail: "Owned fronts keep producing income while the app is open.",
+      tab: "properties",
+    },
+  ];
+  return timeline;
+}
+
+function getOperationsBrief(game, heat, cityControl, income, bossRank, recommendedMove, topRivalThreat, contractBoard) {
+  const ownedFronts = Object.values(game.properties || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  const danger = heat >= 70 || topRivalThreat?.pressure >= 70 ? "Critical" : heat >= 45 || topRivalThreat?.pressure >= 45 ? "Watch" : "Stable";
+  const priorities = [
+    recommendedMove,
+    contractBoard.contracts.find((contract) => contract.ready),
+    heat >= 50 ? { title: "Lower Heat", detail: "Pressure is starting to hurt your operation.", tab: "heat" } : { title: "Grow Income", detail: "Buy or upgrade fronts to make each minute worth more.", tab: "properties" },
+  ].filter(Boolean);
+
+  return {
+    danger,
+    economy: `${money(game.cash)} cash • ${money(income)}/min • ${ownedFronts} fronts`,
+    city: `${cityControl}% control • ${bossRank.title}`,
+    people: `${game.crew || 0} crew • ${game.respect || 0} respect • ${game.skillPoints || 0} skill pts`,
+    rival: topRivalThreat ? `${topRivalThreat.rival.name} ${topRivalThreat.pressure}/100` : "No major rival pressure",
+    priorities,
+  };
+}
+
+
 function money(value) {
   return `$${Math.round(value || 0).toLocaleString()}`;
+}
+
+function getMissingRequirementMessage(resources = {}, costs = {}, labels = {}) {
+  const missing = [];
+  if (Number(resources.cash || 0) < Number(costs.cash || 0)) missing.push(`Need ${money(Number(costs.cash || 0) - Number(resources.cash || 0))} more cash`);
+  if (Number(resources.tribute || 0) < Number(costs.tribute || 0)) missing.push(`Need ${Number(costs.tribute || 0) - Number(resources.tribute || 0)} more tribute`);
+  if (Number(resources.energy || 0) < Number(costs.energy || 0)) missing.push(`Need ${Number(costs.energy || 0) - Number(resources.energy || 0)} more energy`);
+  if (Number(resources.respect || 0) < Number(costs.respect || 0)) missing.push(`Need ${Number(costs.respect || 0) - Number(resources.respect || 0)} more respect`);
+  return missing[0] || labels.ready || "Ready";
 }
 
 function rand(min, max) {
@@ -1236,6 +1533,7 @@ const defaultSettings = {
   sfxOn: true,
   notificationsOn: true,
   reducedMotion: false,
+  language: "en",
 };
 
 function loadSettings() {
@@ -1626,7 +1924,8 @@ function getPropertyIncomeValue(property, game, bossIncome = 1) {
 
   const districtControl = game.territory?.[property.district] || 0;
   const districtMultiplier = getDistrictIncomeMultiplier(districtControl);
-  return Math.round(property.income * owned * bossIncome * districtMultiplier * getPropertyLevelMultiplier(level));
+  const damageMultiplier = getFrontDamageIncomeMultiplier(game, property.id);
+  return Math.round(property.income * owned * bossIncome * districtMultiplier * getPropertyLevelMultiplier(level) * damageMultiplier);
 }
 
 function getSupplyRouteStats(game) {
@@ -2318,7 +2617,26 @@ function normalizeGame(game) {
     dailyStats: { ...startGame.dailyStats, ...((game || {}).dailyStats || {}) },
     chapterRewards: { ...startGame.chapterRewards, ...((game || {}).chapterRewards || {}) },
     liveEventRewards: { ...startGame.liveEventRewards, ...((game || {}).liveEventRewards || {}) },
+    pvpAttackLog: Array.isArray((game || {}).pvpAttackLog) ? (game || {}).pvpAttackLog : [],
+    pvpRevengeList: Array.isArray((game || {}).pvpRevengeList) ? (game || {}).pvpRevengeList : [],
+    pvpGrudges: { ...startGame.pvpGrudges, ...((game || {}).pvpGrudges || {}) },
+    pvpBountyProgress: { ...startGame.pvpBountyProgress, ...((game || {}).pvpBountyProgress || {}) },
+    pvpBountiesClaimed: { ...startGame.pvpBountiesClaimed, ...((game || {}).pvpBountiesClaimed || {}) },
+    pvpRivalHistory: { ...startGame.pvpRivalHistory, ...((game || {}).pvpRivalHistory || {}) },
+    pvpNemesisMap: { ...startGame.pvpNemesisMap, ...((game || {}).pvpNemesisMap || {}) },
+    pvpRevengeBonuses: { ...startGame.pvpRevengeBonuses, ...((game || {}).pvpRevengeBonuses || {}) },
+    pvpRetaliationTimers: { ...startGame.pvpRetaliationTimers, ...((game || {}).pvpRetaliationTimers || {}) },
+    frontDamage: { ...startGame.frontDamage, ...((game || {}).frontDamage || {}) },
+    offlineEventRecords: Array.isArray((game || {}).offlineEventRecords) ? (game || {}).offlineEventRecords : [],
   };
+
+  merged.saveVersion = Math.max(4, Number(merged.saveVersion || 1));
+  merged.language = ["en","nl","es","de","ar"].includes(merged.language) ? merged.language : "en";
+  merged.translationVersion = Number(merged.translationVersion || 1);
+  merged.lastSeenAt = Number(merged.lastSeenAt || 0);
+  merged.lastOfflineEventAt = Number(merged.lastOfflineEventAt || 0);
+  if (!merged.playerId) merged.playerId = `local-${Date.now()}`;
+  if (!merged.crewName) merged.crewName = `${merged.bossName || "Rookie"} Crew`;
 
   if (!merged.liveEventStartedAt) {
     merged.liveEventStartedAt = Date.now();
@@ -2419,6 +2737,7 @@ function loadGame() {
 function addLog(game, message) {
   return {
     ...game,
+    lastActionResult: { title: "Move Complete", detail: message, createdAt: Date.now() },
     log: [message, ...(game.log || [])].slice(0, 12),
   };
 }
@@ -2455,6 +2774,8 @@ export default function App() {
   const [startingDistrictId, setStartingDistrictId] = useState(game.startingDistrictId || "docks");
   const [setupProfileImage, setSetupProfileImage] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [rewardToast, setRewardToast] = useState(null);
+  const [actionResult, setActionResult] = useState(null);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [installPromptMode, setInstallPromptMode] = useState("native");
@@ -2464,6 +2785,8 @@ export default function App() {
   });
 
   const [settings, setSettings] = useState(loadSettings);
+  const [offlineEvent, setOfflineEvent] = useState(null);
+  const t = useMemo(() => makeTranslator(settings), [settings]);
 
   const currentUser = session?.username ? users[session.username] : null;
   const selectedClass = bossClasses.find((item) => item.id === classId) || bossClasses[0];
@@ -2535,6 +2858,8 @@ export default function App() {
   const effectiveCrewForPower = Math.max(0, Number(game.crew || 0) - (eventDeputyLocked ? 1 : 0));
   const attack = Math.round((10 + effectiveCrewForPower * 2 * crewPowerMultiplier + gearAttack + skillStats.attackBonus + safehouseStats.attackBonus + lieutenantStats.attackBonus + crewAttackBonus) * bossClass.attack);
   const defense = Math.round((10 + effectiveCrewForPower * 2 * crewPowerMultiplier + gearDefense + skillStats.defenseBonus + safehouseStats.defenseBonus + lieutenantStats.defenseBonus + crewDefenseBonus) * bossClass.defense);
+  const playerPowerScore = calculatePowerScore(game, { attack, defense });
+  const publicProfile = useMemo(() => getPublicProfileSummary(game, bossClass, { attack, defense }), [game, bossClass, attack, defense]);
   const startingDistrictControl = game.territory?.[game.startingDistrictId || "docks"] || 0;
   const ownedPropertyCount = Object.values(game.properties || {}).reduce((sum, count) => sum + Number(count || 0), 0);
   const upgradedFrontCount = Object.values(game.propertyUpgrades || {}).filter((level) => Number(level || 0) > 1).length;
@@ -2566,12 +2891,50 @@ export default function App() {
   const liveEventMilestoneReady = Number(game.liveEventInfluence || 0) >= liveEvent.milestoneInfluence;
   const liveEventMilestoneClaimed = Boolean(game.liveEventRewards?.concretePourMilestone);
   const recommendedMove = getRecommendedMove(game, dailyOrders, activeStreetOpportunity, nextCampaignChapter, heat, topRivalThreat);
+  const firstSessionMove = getFirstSessionRecommendedMove(game, { heat, topRivalThreat, fallback: recommendedMove, dailyComplete, dailyClaimed, loginReward, loginRewardClaimed });
+  const firstNightProgress = useMemo(() => getFirstNightProgress(game), [game]);
+  const clinicOptions = useMemo(() => getClinicOptions(game, getContactStats(game).clinicDiscount), [game]);
+  const lockedSystemCards = systemUnlocks.map((system) => {
+    const level = Number(game.level || 1);
+    const ownedFronts = Object.values(game.properties || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+    const unlocked = system.id === "lieutenants"
+      ? level >= Number(system.level || 1) || Number(game.crew || 0) >= 15
+      : system.id === "event"
+        ? Number(game.jobsRun || 0) > 0
+        : system.id === "supplyRoutes"
+          ? ownedFronts >= 2
+          : level >= Number(system.level || 1);
+    return { ...system, unlocked };
+  });
+  const balanceSnapshot = getBalanceSnapshot(game, {
+    income,
+    heat,
+    crewLoyalty,
+    topRivalThreat,
+    nextLevelXp: xpNeeded(game.level || 1),
+    estimatedJobCash: jobs[0] ? `${money(jobs[0].cash[0])}-${money(jobs[0].cash[1])}` : "No jobs",
+    firstFrontCost: properties[0]?.cost || 900,
+    averageJobCash: jobs[0] ? Math.round((Number(jobs[0].cash?.[0] || 0) + Number(jobs[0].cash?.[1] || 0)) / 2) : 145,
+    averageJobXp: jobs[0]?.xp || 8,
+    lockedSystems: lockedSystemCards,
+  });
+  const achievements = useMemo(() => getAchievementBadges(game, cityControl, bossRank), [game, cityControl, bossRank]);
+  const intelFeed = useMemo(() => getIntelFeed(game, heat, topRivalThreat, cityControl, bossRank, recommendedMove), [game, heat, topRivalThreat, cityControl, bossRank, recommendedMove]);
+  const streetChatFeed = useMemo(() => getDynamicStreetChatFeed(game, { heat, topRivalThreat, cityControl, activeStreetOpportunity, recommendedMove, pvpLog: game.pvpAttackLog, grudgeMap: game.pvpGrudges }), [game, heat, topRivalThreat, cityControl, activeStreetOpportunity, recommendedMove]);
+  const contractBoard = useMemo(() => getContractBoard(game, heat, cityControl, topRivalThreat, nextTurfTarget, activeStreetOpportunity), [game, heat, cityControl, topRivalThreat, nextTurfTarget, activeStreetOpportunity]);
+  const cityTimeline = useMemo(() => getCityTimeline(game, liveEventPhase, activeStreetOpportunity, cityWireExpired, dailyClaimed, loginRewardClaimed), [game, liveEventPhase, activeStreetOpportunity, cityWireExpired, dailyClaimed, loginRewardClaimed]);
+  const operationsBrief = useMemo(() => getOperationsBrief(game, heat, cityControl, income, bossRank, recommendedMove, topRivalThreat, contractBoard), [game, heat, cityControl, income, bossRank, recommendedMove, topRivalThreat, contractBoard]);
 
   useEffect(() => {
     if (!session?.username) return;
     localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
     localStorage.setItem(SAVE_KEY, JSON.stringify(game));
   }, [game, session]);
+
+  useEffect(() => {
+    if (!game.lastActionResult) return;
+    setRewardToast(game.lastActionResult);
+  }, [game.lastActionResult]);
 
   useEffect(() => {
     if (!game.started) return;
@@ -2581,6 +2944,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     if (typeof document !== "undefined") {
+      const lang = settings.language || "en";
+      const dir = getDirectionForLanguage(lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = dir;
+      document.documentElement.classList.toggle("app-rtl", dir === "rtl");
       document.documentElement.classList.toggle("reduce-motion", Boolean(settings.reducedMotion));
     }
   }, [settings]);
@@ -2914,15 +3282,21 @@ export default function App() {
       const controlGain = Math.max(1, Math.round(job.control * bossClass.control + jobLieutenantStats.jobControlBonus));
       const xpAward = job.xp + jobLieutenantStats.jobXpBonus;
       const crackdown = currentHeat >= 85 && rand(1, 100) <= 35;
+      const outcome = chooseJobOutcome(old, job);
+      const finalPayout = Math.max(25, Math.round(payout * Number(outcome.cashMod || 1)));
+      const finalXpAward = Math.max(1, Math.round(xpAward * Number(outcome.xpMod || 1)));
+      const finalHeatGain = Math.max(0, heatGain + Number(outcome.heatMod || 0));
+      const healthShift = Number(outcome.healthMod || 0);
+      const loyaltyShift = Number(outcome.loyaltyMod || 0);
 
       let next = {
         ...old,
-        heat: clamp(currentHeat + heatGain, 0, 100),
+        heat: clamp(currentHeat + finalHeatGain, 0, 100),
         energy: old.energy - job.energy,
-        cash: old.cash + payout,
+        cash: old.cash + finalPayout,
         jobsRun: old.jobsRun + 1,
         respect: Number(old.respect || 0) + 1,
-        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) + 1, 0, 100),
+        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) + 1 + loyaltyShift, 0, 100),
         territory: {
           ...old.territory,
           [job.district]: clamp((old.territory[job.district] || 0) + controlGain, 0, 100),
@@ -2931,9 +3305,12 @@ export default function App() {
 
       next = addDailyProgress(next, "jobs", 1);
       next = addDailyProgress(next, "turf", controlGain);
-      next = addXp(next, xpAward);
+      next = addXp(next, finalXpAward);
+      if (healthShift) next = { ...next, health: clamp(Number(next.health || 0) + healthShift, 0, Number(next.maxHealth || 100)) };
+      if (outcome.rivalPressure) next = addDistrictRivalPressure(next, job.district, Number(outcome.rivalPressure || 0), `${outcome.title} during ${job.name}`);
+      next = { ...next, lastJobOutcome: outcome.id };
       next = addDistrictRivalPressure(next, job.district, 3 + job.level, `running ${job.name}`);
-      const eventInfluence = getLiveEventJobInfluence(job, payout, controlGain, old);
+      const eventInfluence = getLiveEventJobInfluence(job, finalPayout, controlGain, old);
       if (eventInfluence > 0) {
         next = addLiveEventInfluence(next, eventInfluence);
       }
@@ -2942,21 +3319,36 @@ export default function App() {
 
       if (crackdown) {
         const fine = Math.min(next.cash, rand(175, 425));
+        const damage = rand(4, 12);
         next = {
           ...next,
           cash: next.cash - fine,
-          health: Math.max(0, next.health - rand(4, 12)),
+          health: Math.max(0, next.health - damage),
         };
+        next = applyDroppedConsequence(next, "a crackdown");
+        showResult({
+          type: "Job Result",
+          title: `${job.name} Complete`,
+          flavor: "The money came in, but the city pushed back.",
+          details: [`${outcome.title}`, `+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, `-${money(fine)} Fine`, `-${damage} Health`].filter(Boolean),
+        });
 
         return addLog(
           next,
-          `${job.name}: earned ${money(payout)}, ${xpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${heatGain}.${eventLine} Crackdown cost ${money(fine)}.`
+          `${job.name}: ${outcome.title}. Earned ${money(finalPayout)}, ${finalXpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${finalHeatGain}.${eventLine} Crackdown cost ${money(fine)}.`
         );
       }
 
+      showResult({
+        type: "Job Result",
+        title: `${job.name}: ${outcome.title}`,
+        flavor: outcome.flavor || "The streets are starting to know your name.",
+        details: [`+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, outcome.rivalPressure ? `+${outcome.rivalPressure} Rival Pressure` : null, eventInfluence > 0 ? `+${eventInfluence} Event Influence` : null].filter(Boolean),
+      });
+
       return addLog(
         next,
-        `${job.name}: earned ${money(payout)}, ${xpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${heatGain}.${eventLine}`
+        `${job.name}: ${outcome.title}. Earned ${money(finalPayout)}, ${finalXpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${finalHeatGain}.${eventLine}`
       );
     });
   }
@@ -3016,6 +3408,13 @@ export default function App() {
       next = addDistrictRivalPressure(next, property.district, 6, `buying ${property.name}`);
       next = maybeRivalRetaliation(next, property.district, heat >= 60 ? 16 : 6);
 
+      showResult({
+        type: "Front Purchased",
+        title: property.name,
+        flavor: "That little business now has your money behind it.",
+        details: [`-${money(property.cost)} Cash`, `+1 Front`, `+1 Respect`, `+${heatGain} Heat`],
+      });
+
       return addLog(next, `Purchased ${property.name}. Heat +${heatGain}.`);
     });
   }
@@ -3052,6 +3451,19 @@ export default function App() {
       next = maybeRivalRetaliation(next, property.district, heat >= 60 ? 14 : 5);
 
       return addLog(next, `${property.name} upgraded to Level ${level + 1}. Income improved. Heat +${heatGain}.`);
+    });
+  }
+
+
+  function repairPropertyFront(property) {
+    setGame((old) => {
+      const outcome = repairFrontLogic(old, property);
+      if (outcome.blocked) {
+        showResult({ title: "Repair Blocked", flavor: outcome.reason, details: ["Damaged fronts earn less until repaired."] });
+        return old;
+      }
+      showResult(outcome.result);
+      return addLog(outcome.nextGame, `${property.name} repaired. Income penalty removed.`);
     });
   }
 
@@ -3236,7 +3648,7 @@ export default function App() {
         respect: Number(old.respect || 0) + 1,
         crewAttackBonus: Number(old.crewAttackBonus || 0) + (isMuscle ? 2 : 0),
         crewDefenseBonus: Number(old.crewDefenseBonus || 0) + (isMuscle ? 0 : 2),
-        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) + 1, 0, 100),
+        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) + 1 + loyaltyShift, 0, 100),
       }, "crew", 1);
 
       return addLog(
@@ -3306,6 +3718,13 @@ export default function App() {
         next = addRivalPressureById(next, rival.id, 20, `defeating ${rival.name}`);
         next = maybeRivalRetaliation(next, rival.district, currentHeat >= 85 ? 30 : currentHeat >= 60 ? 18 : 8);
 
+        showResult({
+          type: "Rival Result",
+          title: `Victory over ${rival.name}`,
+          flavor: "Your name just got heavier in the streets.",
+          details: [`+${money(payout)} Cash`, `+${rival.xp} XP`, `+${rival.control}% ${districtName(rival.district)} Turf`, `+${heatGain} Heat`, `+3 Respect`],
+        });
+
         return addLog(next, `Victory over ${rival.name}. Earned ${money(payout)}, ${rival.xp} XP, and Heat +${heatGain}.`);
       }
 
@@ -3321,6 +3740,13 @@ export default function App() {
       };
 
       next = addRivalPressureById(next, rival.id, 8, `challenging ${rival.name}`);
+      next = applyDroppedConsequence(next, rival.name);
+      showResult({
+        type: "Rival Result",
+        title: `Lost to ${rival.name}`,
+        flavor: "The city does not forgive weakness, but you can recover.",
+        details: [`-${money(loss)} Cash`, `-${damage} Health`, `+${heatGain} Heat`, `-4 Crew Loyalty`],
+      });
 
       return addLog(next, `Lost to ${rival.name}. Dropped ${money(loss)}, took ${damage} damage, and Heat +${heatGain}.`);
     });
@@ -3355,8 +3781,8 @@ export default function App() {
       const stats = getVaultStats(old);
       const capacityLeft = Math.max(0, stats.capacity - stats.current);
       const amount = Math.min(Math.floor(Number(old.cash || 0) * percent), capacityLeft);
-      if (amount <= 0 && Number(old.cash || 0) <= 0) return addLog(old, "No cash available to vault.");
-      if (amount <= 0) return addLog(old, "The vault is full. Upgrade vault security before stashing more cash.");
+      if (amount <= 0 && Number(old.cash || 0) <= 0) { showResult({ title: "Vault Blocked", flavor: "No available cash to deposit.", details: ["Run jobs or collect income first."] }); return addLog(old, "No cash available to vault."); }
+      if (amount <= 0) { showResult({ title: "Vault Full", flavor: "Vault is full. Upgrade capacity to store more cash.", details: ["Upgrade Vault Security"] }); return addLog(old, "The vault is full. Upgrade vault security before stashing more cash."); }
 
       return addLog(
         {
@@ -3371,7 +3797,7 @@ export default function App() {
 
   function withdrawVault() {
     setGame((old) => {
-      if (old.vault <= 0) return addLog(old, "The vault is empty.");
+      if (old.vault <= 0) { showResult({ title: "Vault Empty", flavor: "Vault is empty. Deposit cash first.", details: ["Vault Cash: $0", `Capacity: ${money(getVaultStats(old).capacity)}`] }); return addLog(old, "The vault is empty."); }
 
       return addLog(
         {
@@ -3387,12 +3813,12 @@ export default function App() {
   function upgradeVaultSecurity() {
     setGame((old) => {
       const level = getVaultLevel(old);
-      if (level >= 5) return addLog(old, "Vault security is already maxed out.");
+      if (level >= 5) { showResult({ title: "Vault Maxed", flavor: "Vault security is already maxed out.", details: ["Level 5/5"] }); return addLog(old, "Vault security is already maxed out."); }
 
       const cost = getVaultUpgradeCost(level);
-      if (Number(old.cash || 0) < cost.cash) return addLog(old, `You need ${money(cost.cash)} to upgrade vault security.`);
-      if (Number(old.tribute || 0) < cost.tribute) return addLog(old, `You need ${cost.tribute} Tribute to upgrade vault security.`);
-      if (Number(old.energy || 0) < cost.energy) return addLog(old, `You need ${cost.energy} Energy to upgrade vault security.`);
+      if (Number(old.cash || 0) < cost.cash) { const msg = `Need ${money(cost.cash - Number(old.cash || 0))} more cash.`; showResult({ title: "Vault Upgrade Blocked", flavor: msg, details: [msg] }); return addLog(old, `You need ${money(cost.cash)} to upgrade vault security.`); }
+      if (Number(old.tribute || 0) < cost.tribute) { const msg = `Need ${cost.tribute - Number(old.tribute || 0)} more tribute.`; showResult({ title: "Vault Upgrade Blocked", flavor: msg, details: [msg] }); return addLog(old, `You need ${cost.tribute} Tribute to upgrade vault security.`); }
+      if (Number(old.energy || 0) < cost.energy) { const msg = `Need ${cost.energy - Number(old.energy || 0)} more energy.`; showResult({ title: "Vault Upgrade Blocked", flavor: msg, details: [msg] }); return addLog(old, `You need ${cost.energy} Energy to upgrade vault security.`); }
 
       const nextLevel = level + 1;
       return addLog(
@@ -3472,22 +3898,9 @@ export default function App() {
   }
 
   function healBoss() {
-    setGame((old) => {
-      if (old.health >= old.maxHealth) return addLog(old, "You are already at full health.");
-
-      const contactDiscount = Math.min(0.35, getContactStats(old).clinicDiscount);
-      const cost = Math.max(150, Math.round(old.maxHealth * 2 * (1 - contactDiscount)));
-      if (old.cash < cost) return addLog(old, `You need ${money(cost)} to heal.`);
-
-      return addLog(
-        {
-          ...old,
-          cash: old.cash - cost,
-          health: old.maxHealth,
-        },
-        `Clinic visit complete. Healed to ${old.maxHealth}/${old.maxHealth}.`
-      );
-    });
+    const fullOption = getClinicOptions(game, getContactStats(game).clinicDiscount).find((option) => option.id === "full");
+    if (fullOption && !fullOption.disabled) return useClinicTreatment("full");
+    return useClinicTreatment("patch");
   }
 
 
@@ -3912,12 +4325,12 @@ export default function App() {
   function upgradeSafehouseRoom(room) {
     setGame((old) => {
       const level = getSafehouseRoomLevel(old, room.id);
-      if (level >= (room.max || 5)) return addLog(old, `${room.name} is already fully upgraded.`);
+      if (level >= (room.max || 5)) { showResult({ title: `${room.name} Maxed`, flavor: `${room.name} is already fully upgraded.`, details: [`Level ${level}/${room.max || 5}`] }); return addLog(old, `${room.name} is already fully upgraded.`); }
 
       const cost = getSafehouseUpgradeCost(room, level);
-      if (Number(old.cash || 0) < cost.cash) return addLog(old, `You need ${money(cost.cash)} to upgrade ${room.name}.`);
-      if (Number(old.tribute || 0) < cost.tribute) return addLog(old, `You need ${cost.tribute} Tribute to upgrade ${room.name}.`);
-      if (Number(old.energy || 0) < cost.energy) return addLog(old, `You need ${cost.energy} Energy to upgrade ${room.name}.`);
+      if (Number(old.cash || 0) < cost.cash) { const msg = `Need ${money(cost.cash - Number(old.cash || 0))} more cash.`; showResult({ title: "Safehouse Upgrade Blocked", flavor: msg, details: [room.name, msg] }); return addLog(old, `You need ${money(cost.cash)} to upgrade ${room.name}.`); }
+      if (Number(old.tribute || 0) < cost.tribute) { const msg = `Need ${cost.tribute - Number(old.tribute || 0)} more tribute.`; showResult({ title: "Safehouse Upgrade Blocked", flavor: msg, details: [room.name, msg] }); return addLog(old, `You need ${cost.tribute} Tribute to upgrade ${room.name}.`); }
+      if (Number(old.energy || 0) < cost.energy) { const msg = `Need ${cost.energy - Number(old.energy || 0)} more energy.`; showResult({ title: "Safehouse Upgrade Blocked", flavor: msg, details: [room.name, msg] }); return addLog(old, `You need ${cost.energy} Energy to upgrade ${room.name}.`); }
 
       const nextLevel = level + 1;
       let next = {
@@ -3966,6 +4379,8 @@ export default function App() {
 
       next = addDailyProgress(next, "fronts", 1);
 
+      showResult({ title: `${room.name} Upgraded`, flavor: room.effect, details: [`Level ${nextLevel}/${room.max || 5}`, `-${money(cost.cash)} Cash`, `-${cost.tribute} Tribute`, `-${cost.energy} Energy`, "+1 Respect"] });
+
       return addLog(next, `${room.name} upgraded to Level ${nextLevel}/${room.max || 5}. ${room.effect}.`);
     });
   }
@@ -3974,13 +4389,13 @@ export default function App() {
   function upgradeContact(contact) {
     setGame((old) => {
       const level = getContactLevel(old, contact.id);
-      if (level >= (contact.max || 5)) return addLog(old, `${contact.name} is already fully connected.`);
+      if (level >= (contact.max || 5)) { showResult({ title: "Contact Maxed", flavor: `${contact.name} is already fully connected.`, details: [`Level ${level}/${contact.max || 5}`] }); return addLog(old, `${contact.name} is already fully connected.`); }
 
       const cost = getContactUpgradeCost(contact, level);
-      if (Number(old.cash || 0) < cost.cash) return addLog(old, `You need ${money(cost.cash)} to build trust with ${contact.name}.`);
-      if (Number(old.respect || 0) < cost.respect) return addLog(old, `You need ${cost.respect} Respect to build trust with ${contact.name}.`);
-      if (Number(old.tribute || 0) < cost.tribute) return addLog(old, `You need ${cost.tribute} Tribute to build trust with ${contact.name}.`);
-      if (Number(old.energy || 0) < cost.energy) return addLog(old, `You need ${cost.energy} Energy to build trust with ${contact.name}.`);
+      if (Number(old.cash || 0) < cost.cash) { const msg = `Need ${money(cost.cash - Number(old.cash || 0))} more cash.`; showResult({ title: "Contact Locked", flavor: msg, details: [contact.name, msg] }); return addLog(old, `You need ${money(cost.cash)} to build trust with ${contact.name}.`); }
+      if (Number(old.respect || 0) < cost.respect) { const msg = `Need ${cost.respect - Number(old.respect || 0)} more respect.`; showResult({ title: "Contact Locked", flavor: msg, details: [contact.name, msg] }); return addLog(old, `You need ${cost.respect} Respect to build trust with ${contact.name}.`); }
+      if (Number(old.tribute || 0) < cost.tribute) { const msg = `Need ${cost.tribute - Number(old.tribute || 0)} more tribute.`; showResult({ title: "Contact Locked", flavor: msg, details: [contact.name, msg] }); return addLog(old, `You need ${cost.tribute} Tribute to build trust with ${contact.name}.`); }
+      if (Number(old.energy || 0) < cost.energy) { const msg = `Need ${cost.energy - Number(old.energy || 0)} more energy.`; showResult({ title: "Contact Locked", flavor: msg, details: [contact.name, msg] }); return addLog(old, `You need ${cost.energy} Energy to build trust with ${contact.name}.`); }
 
       const nextLevel = level + 1;
       let next = {
@@ -3997,6 +4412,8 @@ export default function App() {
       };
 
       next = addDailyProgress(next, "crew", 1);
+
+      showResult({ title: `${contact.name} Connected`, flavor: contact.effect, details: [`Trust Level ${nextLevel}/${contact.max || 5}`, `-${money(cost.cash)} Cash`, `-${cost.respect} Respect cost`, `-${cost.tribute} Tribute`, `-${cost.energy} Energy`] });
 
       return addLog(next, `${contact.name} trust increased to Level ${nextLevel}/${contact.max || 5}. ${contact.effect}`);
     });
@@ -4144,6 +4561,13 @@ export default function App() {
       const yesterday = getYesterdayKey();
       const streak = old.loginRewardClaimedDate === yesterday ? Number(old.loginRewardStreak || 0) + 1 : 1;
 
+      showResult({
+        type: "Reward Claimed",
+        title: "Daily Login Reward",
+        flavor: "Daily habits turn into street power.",
+        details: [getRewardText(reward), `Streak ${streak}`],
+      });
+
       return addLog({
         ...old,
         cash: Number(old.cash || 0) + reward.cash,
@@ -4158,6 +4582,284 @@ export default function App() {
 
   function districtName(id) {
     return getDistrictName(id);
+  }
+
+  function showResult(result) {
+    setActionResult(result);
+    if (result?.title) setRewardToast({ title: result.title, detail: result.flavor || result.detail || "The city changed because of your move." });
+  }
+
+  function getPvpGrudgeLabel(value) {
+    const score = Number(value || 0);
+    if (score >= 100) return "War";
+    if (score >= 75) return "Personal";
+    if (score >= 50) return "Heated";
+    if (score >= 25) return "Watching";
+    return "Cold";
+  }
+
+  function addPvpLogEntry(old, entry) {
+    const pvpAttackLog = [
+      { id: `pvp-${Date.now()}-${Math.random().toString(16).slice(2)}`, time: Date.now(), timeText: "just now", ...entry },
+      ...((old.pvpAttackLog || []).slice(0, 39)),
+    ];
+    return { ...old, pvpAttackLog };
+  }
+
+  function attackMockPlayer(target) {
+    setGame((old) => {
+      if (Number(old.health || 0) <= 0) {
+        showResult({ title: "You Got Dropped", flavor: "Use the Clinic before making another risky move.", details: ["Health is too low for a hit."] });
+        return old;
+      }
+      if (Number(old.stamina || 0) < 5) {
+        showResult({ title: "Not Enough Stamina", flavor: "Your crew needs a minute before another hit.", details: ["Need 5 Stamina"] });
+        return old;
+      }
+
+      const result = simulatePvpAttack({ game: old, target, playerAttack: attack, playerDefense: defense, powerScore: playerPowerScore });
+      const oldDistrictControl = Number(old.territory?.[target.favoriteDistrict] || 0);
+      const cash = Math.max(0, Number(old.cash || 0) + result.cashDelta);
+      const grudgeMap = { ...(old.pvpGrudges || {}), [target.id]: clamp(Number(old.pvpGrudges?.[target.id] || 0) + result.grudgeGain, 0, 125) };
+      const bountyProgress = { ...(old.pvpBountyProgress || {}) };
+      if (result.win && target.powerScore > playerPowerScore) bountyProgress.stronger_crews = Number(bountyProgress.stronger_crews || 0) + 1;
+      if (result.cashDelta > 0) bountyProgress.rival_cash = Number(bountyProgress.rival_cash || 0) + result.cashDelta;
+      if (Object.values(grudgeMap).some((value) => Number(value || 0) >= 100)) bountyProgress.war_grudge = 1;
+
+      const revengeItem = result.win ? null : {
+        id: `rev-${target.id}-${Date.now()}`,
+        targetId: target.id,
+        bossName: target.bossName,
+        crewName: target.crewName,
+        reason: `${target.bossName} turned your hit around and took cash.`,
+        cashTaken: Math.abs(result.cashDelta),
+        powerScore: target.powerScore,
+        reward: `+${Math.max(10, Math.round(target.powerScore / 12))} Respect`,
+        risk: result.outcome,
+      };
+      const previousHistory = old.pvpRivalHistory?.[target.id] || {};
+      const rivalHistory = {
+        ...(old.pvpRivalHistory || {}),
+        [target.id]: {
+          ...previousHistory,
+          playerAttacks: Number(previousHistory.playerAttacks || 0) + 1,
+          rivalAttacks: Number(previousHistory.rivalAttacks || 0) + (result.win ? 0 : 1),
+          cashStolenFromThem: Number(previousHistory.cashStolenFromThem || 0) + Math.max(0, result.cashDelta),
+          cashStolenFromYou: Number(previousHistory.cashStolenFromYou || 0) + Math.max(0, -result.cashDelta),
+          lastEvent: result.win ? `You hit them for $${Math.max(0, result.cashDelta).toLocaleString()}` : `They turned the hit around for $${Math.max(0, -result.cashDelta).toLocaleString()}`,
+        },
+      };
+
+      let next = {
+        ...old,
+        cash,
+        respect: Math.max(0, Number(old.respect || 0) + result.respectDelta),
+        health: clamp(Number(old.health || 0) - result.healthLoss, 0, Number(old.maxHealth || 100)),
+        heat: clamp(Number(old.heat || 0) + result.heatGain, 0, 100),
+        stamina: Math.max(0, Number(old.stamina || 0) - 5),
+        pvpGrudges: grudgeMap,
+        pvpRivalHistory: rivalHistory,
+        pvpBountyProgress: bountyProgress,
+        pvpCashStolen: Number(old.pvpCashStolen || 0) + Math.max(0, result.cashDelta),
+        territory: result.turfGain > 0 ? { ...old.territory, [target.favoriteDistrict]: clamp(oldDistrictControl + result.turfGain, 0, 100) } : old.territory,
+        pvpRevengeList: revengeItem ? [revengeItem, ...((old.pvpRevengeList || []).slice(0, 14))] : (old.pvpRevengeList || []),
+      };
+
+      const risk = getRetaliationRisk(next, target.id, result.revengeRisk);
+      next = {
+        ...next,
+        pvpRetaliationTimers: { ...(next.pvpRetaliationTimers || {}), [target.id]: { risk: risk.label, score: risk.score, createdAt: Date.now(), dueAfterActions: result.win ? 4 : 2 } },
+        pvpRevengeBonuses: result.win ? (next.pvpRevengeBonuses || {}) : { ...(next.pvpRevengeBonuses || {}), [target.id]: { cashMultiplier: 1.15, respectMultiplier: 1.25, expiresAt: Date.now() + 1000 * 60 * 60 * 24 } },
+      };
+      const wasNemesis = Boolean(old.pvpNemesisMap?.[target.id]);
+      next = updateNemesisMap(next, target.id);
+      const becameNemesis = !wasNemesis && Boolean(next.pvpNemesisMap?.[target.id]);
+      if (!result.win && Math.random() > 0.45) {
+        const damaged = damageRandomFront(next, properties, result.outcome === "Rival Trap" ? 32 : 20);
+        next = damaged.nextGame;
+        if (damaged.damagedFront) next = addLog(next, `${target.bossName} damaged ${damaged.damagedFront.name}. Income reduced until repaired.`);
+      }
+      const logLine = makeAttackLogLine(target, result);
+      next = addPvpLogEntry(next, { title: result.win ? "Hit Successful" : "Hit Went Bad", text: logLine, targetId: target.id, outcome: result.outcome });
+      next = addLog(next, logLine);
+      next = applyDroppedConsequence(next, target.crewName);
+
+      showResult({
+        title: result.win ? "Hit Successful" : "Hit Failed",
+        flavor: makeStreetChatLine(target, result),
+        details: [
+          result.cashDelta >= 0 ? `+$${result.cashDelta.toLocaleString()} Cash` : `-$${Math.abs(result.cashDelta).toLocaleString()} Cash`,
+          `${result.respectDelta >= 0 ? "+" : ""}${result.respectDelta} Respect`,
+          `+${result.heatGain} Heat`,
+          `-${result.healthLoss} Health`,
+          result.turfGain ? `+${result.turfGain}% ${getDistrictName(target.favoriteDistrict)} Turf` : `Revenge risk ${result.revengeRisk}%`,
+          `Grudge Level: ${getPvpGrudgeLabel(grudgeMap[target.id])}`,
+          `Retaliation Risk: ${risk.label}`,
+          becameNemesis ? `${target.bossName} has become your Nemesis.` : `${target.crewName} ${result.win ? "noticed" : "is talking about it"}.`,
+        ],
+      });
+
+      return next;
+    });
+  }
+
+  function retaliateAgainst(item) {
+    const target = mockPlayers.find((player) => player.id === item.targetId) || mockPlayers[0];
+    setGame((old) => {
+      const bonus = old.pvpRevengeBonuses?.[target.id];
+      const bonusActive = bonus && Number(bonus.expiresAt || 0) > Date.now();
+      const respectGain = Math.round(Math.max(10, Number(target.powerScore || 100) / 12) * (bonusActive ? 1.25 : 1));
+      const cashGain = Math.round(Math.max(500, Number(target.powerScore || 100) * 3.5) * (bonusActive ? 1.15 : 1));
+      const bountyProgress = { ...(old.pvpBountyProgress || {}), revenge_hits: Number(old.pvpBountyProgress?.revenge_hits || 0) + 1 };
+      const previousHistory = old.pvpRivalHistory?.[target.id] || {};
+      const rivalHistory = {
+        ...(old.pvpRivalHistory || {}),
+        [target.id]: {
+          ...previousHistory,
+          revengeWins: Number(previousHistory.revengeWins || 0) + 1,
+          cashStolenFromThem: Number(previousHistory.cashStolenFromThem || 0) + cashGain,
+          lastEvent: `You completed revenge for $${cashGain.toLocaleString()}`,
+        },
+      };
+      let next = {
+        ...old,
+        cash: Number(old.cash || 0) + cashGain,
+        respect: Number(old.respect || 0) + respectGain,
+        heat: clamp(Number(old.heat || 0) + 4, 0, 100),
+        pvpRevengeWins: Number(old.pvpRevengeWins || 0) + 1,
+        pvpBountyProgress: bountyProgress,
+        pvpRivalHistory: rivalHistory,
+        pvpRevengeList: (old.pvpRevengeList || []).filter((row) => row.id !== item.id),
+        pvpGrudges: { ...(old.pvpGrudges || {}), [target.id]: Math.max(0, Number(old.pvpGrudges?.[target.id] || 0) - 12) },
+        pvpRevengeBonuses: { ...(old.pvpRevengeBonuses || {}), [target.id]: null },
+      };
+      const line = `You settled the score with ${target.bossName}. The ${target.crewName} will remember it.`;
+      next = addPvpLogEntry(next, { title: "Revenge Completed", text: line, targetId: target.id, outcome: "Retaliation" });
+      next = addLog(next, line);
+      showResult({ title: "Revenge Completed", flavor: target.revengeLine, details: [`+$${cashGain.toLocaleString()} Cash`, `+${respectGain} Respect`, "+4 Heat"] });
+      return next;
+    });
+  }
+
+  function updateDefensePosture(posture) {
+    setGame((old) => {
+      const cost = Number(posture.cost || 0);
+      if (Number(old.cash || 0) < cost) {
+        showResult({ title: "Not Enough Cash", flavor: `${posture.name} costs ${money(cost)} to set up.`, details: ["Run jobs or collect income first."] });
+        return old;
+      }
+      let next = {
+        ...old,
+        cash: Number(old.cash || 0) - cost,
+        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) - Number(posture.loyaltyCost || 0), 0, 100),
+        heat: clamp(Number(old.heat || 0) + Number(posture.heatMod || 0), 0, 100),
+        pvpDefensePosture: posture.id,
+      };
+      next = addPvpLogEntry(next, { title: "Defense Updated", text: `Your crew switched to ${posture.name}.`, outcome: posture.id });
+      showResult({ title: "Defense Updated", flavor: posture.desc, details: [cost ? `-${money(cost)} Cash` : "No cash cost", `Heat ${posture.heatMod >= 0 ? "+" : ""}${posture.heatMod || 0}`] });
+      return next;
+    });
+  }
+
+  function claimPvpBounty(bounty) {
+    setGame((old) => {
+      if (old.pvpBountiesClaimed?.[bounty.id]) return old;
+      if (Number(old.pvpBountyProgress?.[bounty.id] || 0) < Number(bounty.target || 1)) return old;
+      const next = addLog({
+        ...old,
+        cash: Number(old.cash || 0) + Number(bounty.reward.cash || 0),
+        respect: Number(old.respect || 0) + Number(bounty.reward.respect || 0),
+        pvpBountiesClaimed: { ...(old.pvpBountiesClaimed || {}), [bounty.id]: true },
+      }, `Bounty claimed: ${bounty.title}.`);
+      showResult({ title: "Bounty Claimed", flavor: bounty.desc, details: [`+$${Number(bounty.reward.cash || 0).toLocaleString()} Cash`, `+${bounty.reward.respect} Respect`] });
+      return next;
+    });
+  }
+
+  function exportCurrentSave() {
+    const payload = { exportedAt: new Date().toISOString(), app: "Shadow Syndicate", game: normalizeGame(game), users };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shadow-syndicate-save-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showResult({ title: "Save Exported", flavor: "Your local save backup downloaded as JSON.", details: ["Keep it somewhere safe before big updates."] });
+  }
+
+  function importCurrentSave(file) {
+    if (!file) return "Choose a save file first.";
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "{}"));
+        const importedGame = parsed.game || parsed;
+        if (!importedGame || typeof importedGame !== "object") throw new Error("Bad save");
+        const nextGame = normalizeGame(importedGame);
+        setGame(nextGame);
+        if (session?.username) localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(nextGame));
+        showResult({ title: "Save Imported", flavor: "Your local save was loaded safely.", details: [`Boss: ${nextGame.bossName || "Unknown"}`, `Level ${nextGame.level || 1}`] });
+      } catch {
+        showResult({ title: "Import Failed", flavor: "That file did not look like a valid Shadow Syndicate save.", details: ["Nothing was replaced."] });
+      }
+    };
+    reader.readAsText(file);
+    return "Import started.";
+  }
+
+  function applyDroppedConsequence(next, source = "the streets") {
+    if (Number(next.health || 0) > 0) return next;
+    const cashLoss = Math.min(Number(next.cash || 0), Math.max(75, Math.round(Number(next.cash || 0) * 0.08)));
+    return addLog({
+      ...next,
+      cash: Number(next.cash || 0) - cashLoss,
+      crewLoyalty: clamp(Number(next.crewLoyalty ?? 75) - 3, 0, 100),
+      heat: clamp(Number(next.heat || 0) + 3, 0, 100),
+    }, `You got dropped by ${source}. Lost ${money(cashLoss)}, crew loyalty slipped, and Heat rose +3. Use Emergency Recovery at the Clinic.`);
+  }
+
+  function useClinicTreatment(optionId) {
+    setGame((old) => {
+      const options = getClinicOptions(old, getContactStats(old).clinicDiscount);
+      const option = options.find((item) => item.id === optionId);
+      if (!option) return old;
+      if (option.disabled) return addLog(old, `${option.title} is not available right now.`);
+
+      const maxHealth = Number(old.maxHealth || 100);
+      const currentHealth = Number(old.health || 0);
+      const newHealth = option.full ? maxHealth : clamp(currentHealth + Number(option.healAmount || 0), 0, maxHealth);
+      const heatReduction = Number(option.heatReduction || 0);
+      const loyaltyLoss = Number(option.loyaltyLoss || 0);
+      const next = {
+        ...old,
+        cash: Number(old.cash || 0) - Number(option.cost || 0),
+        health: newHealth,
+        heat: Math.max(0, Number(old.heat || 0) - heatReduction),
+        crewLoyalty: clamp(Number(old.crewLoyalty ?? 75) - loyaltyLoss, 0, 100),
+      };
+
+      showResult({
+        type: "Clinic Result",
+        title: option.title,
+        flavor: option.emergency ? "You are back on your feet, but the crew noticed." : "The boss is patched up and ready for the next move.",
+        details: [
+          `-${money(option.cost)} Cash`,
+          `Health ${newHealth}/${maxHealth}`,
+          heatReduction > 0 ? `-${heatReduction} Heat` : null,
+          loyaltyLoss > 0 ? `-${loyaltyLoss} Crew Loyalty` : null,
+        ].filter(Boolean),
+      });
+
+      return addLog(next, `${option.title} complete. Health ${newHealth}/${maxHealth}${heatReduction ? `, Heat -${heatReduction}` : ""}${loyaltyLoss ? `, Crew Loyalty -${loyaltyLoss}` : ""}.`);
+    });
+  }
+
+  function goToTab(nextTab) {
+    setTab(nextTab);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    }
   }
 
   function updateSetting(key) {
@@ -4263,6 +4965,19 @@ export default function App() {
       window.removeEventListener("appinstalled", onAppInstalled);
     };
   }, [installPromptDismissed]);
+
+  useEffect(() => {
+    if (!session?.username || !game?.started || offlineEvent) return;
+    if (!shouldRunOfflineEvent(game)) {
+      setGame((old) => ({ ...old, lastSeenAt: Date.now() }));
+      return;
+    }
+    const simulated = simulateOfflineEvent(game, mockPlayers, defensePostures);
+    if (simulated?.event) {
+      setOfflineEvent(simulated.event);
+      setGame(normalizeGame({ ...simulated.nextGame, lastSeenAt: Date.now() }));
+    }
+  }, [session?.username, game?.started]);
 
   if (!session || !currentUser) {
     return (
@@ -4416,6 +5131,9 @@ export default function App() {
         onInstall={handleInstallApp}
         onDismiss={handleDismissInstallPrompt}
       />
+      <RewardToast message={rewardToast} onClose={() => setRewardToast(null)} />
+      <ActionResultCard result={actionResult} onClose={() => setActionResult(null)} />
+      <WhileYouWereGoneCard event={offlineEvent} onClose={() => setOfflineEvent(null)} onOpenPvp={() => goToTab("pvp")} />
     <div className="app">
       <header className="top-hero">
         <div className="top-hero-overlay">
@@ -4433,7 +5151,7 @@ export default function App() {
                 <small className="build-tag">{APP_BUILD_LABEL}</small>
               </div>
               <div className="quick-account-actions">
-                <button type="button" className="secondary compact-button" onClick={() => setTab("account")}>
+                <button type="button" className="secondary compact-button" onClick={() => goToTab("account")}>
                   Account
                 </button>
                 <button type="button" className="secondary compact-button" onClick={signOut}>
@@ -4467,7 +5185,7 @@ export default function App() {
         <Stat label="Base" value={safehouseStats.totalLevels} helper="safehouse" />
         <Stat label="Contacts" value={`${contactStats.unlockedCount}/${underworldContacts.length}`} helper={`${contactStats.totalLevels} trust`} />
         <Stat label="Lts" value={`${lieutenantStats.unlockedCount}/${lieutenants.length}`} helper={`${lieutenantStats.assignedCount} assigned`} />
-        <Stat label="Health" value={`${game.health}/${game.maxHealth}`} helper="combat" />
+        <HealthStat current={game.health} max={game.maxHealth} cash={game.cash} onHeal={healBoss} />
         <Stat label="Heat" value={`${heat}/100`} helper={heatTier.label} />
         <Stat label="Respect" value={game.respect || 0} helper="street rep" />
         <Stat label="Skill Pts" value={game.skillPoints || 0} helper={`${skillStats.totalRanks} ranks`} />
@@ -4476,41 +5194,31 @@ export default function App() {
         <Stat label="Power" value={`${attack}/${defense}`} helper="atk / def" />
       </section>
 
-      <nav className="main-nav">
-        {[
-          ["command", "Command"],
-          ["missions", "Mission Board"],
-          ["rewards", "Rewards"],
-          ["daily", "Daily"],
-          ["event", "Event"],
-          ["heat", "Heat"],
-          ["campaign", "Campaign"],
-          ["skills", "Skills"],
-          ["market", "Market"],
-          ["safehouse", "Safehouse"],
-          ["contacts", "Contacts"],
-          ["lieutenants", "Lieutenants"],
-          ["jobs", "Jobs"],
-          ["territory", "Territory"],
-          ["crew", "Crew"],
-          ["properties", "Properties"],
-          ["rivals", "Rivals"],
-          ["revenge", "Revenge"],
-          ["vault", "Vault"],
-          ["clinic", "Clinic"],
-          ["wire", "City Wire"],
-          ["log", "Log"],
-          ["account", "Account"],
-          ["settings", "Settings"],
-        ].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={tab === id ? "active" : ""}>
-            {label}
-          </button>
-        ))}
+      <nav className="main-nav grouped-main-nav" aria-label="Game sections">
+        <button type="button" onClick={() => goToTab("command")} className={tab === "command" ? "active" : ""}>Home</button>
+        <button type="button" onClick={() => goToTab("jobs")} className={tab === "jobs" ? "active" : ""}>Jobs</button>
+        <button type="button" onClick={() => goToTab("territory")} className={tab === "territory" ? "active" : ""}>Turf</button>
+        <button type="button" onClick={() => goToTab("crew")} className={tab === "crew" ? "active" : ""}>Crew</button>
+        <NavGroup label="Progress" activeTab={tab} items={[
+          ["missions", "Mission Board"], ["rewards", t("rewards", "Rewards")], ["achievements", t("achievements", "Achievements")], ["daily", "Daily"], ["campaign", t("campaign", "Campaign")], ["skills", "Skills"]
+        ]} onNavigate={goToTab} />
+        <NavGroup label="Empire" activeTab={tab} items={[
+          ["properties", "Fronts"], ["safehouse", t("safehouse", "Safehouse")], ["vault", t("vault", "Vault")], ["market", "Black Market"]
+        ]} onNavigate={goToTab} />
+        <NavGroup label="Street" activeTab={tab} items={[
+          ["pvp", "PvP Hub"], ["chat", t("streetChat", "Street Chat")], ["intel", "Intel"], ["wire", "City Wire"], ["contacts", t("contacts", "Contacts")], ["lieutenants", "Lieutenants"]
+        ]} onNavigate={goToTab} />
+        <NavGroup label="Risk" activeTab={tab} items={[
+          ["heat", t("heat", "Heat")], ["rivals", t("rivals", "Rivals")], ["revenge", "Revenge"], ["clinic", "Clinic"]
+        ]} onNavigate={goToTab} />
+        <NavGroup label="System" activeTab={tab} items={[
+          ["contracts", t("contracts", "Contracts")], ["timeline", t("timeline", "Timeline")], ["brief", t("brief", "Brief")], ["event", "Event"], ["log", "Log"], ["balance", "Balance"], ["settings", t("settings", "Settings")], ["account", "Account"]
+        ]} onNavigate={goToTab} />
       </nav>
 
       <main className="layout">
         <section className="main-panel">
+          <ErrorBoundary>
           {tab === "command" && (
             <Panel title="Command Center" sub="Choose your next move and keep the city moving in your direction.">
               <NewPlayerIntroCard
@@ -4518,8 +5226,12 @@ export default function App() {
                 bossClass={bossClass}
                 district={districtName(game.startingDistrictId || "docks")}
                 firstMoves={firstMoves}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
+
+              <RecommendedNextMoveCard move={firstSessionMove} onNavigate={goToTab} />
+
+              <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
 
               <MissionBoardSummaryCard
                 recommended={recommendedMove}
@@ -4527,17 +5239,31 @@ export default function App() {
                 activeLead={activeStreetOpportunity}
                 nextChapter={nextCampaignChapter}
                 liveEventPhase={liveEventPhase}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
 
-              <BossRankSummaryCard rank={bossRank} game={game} cityControl={cityControl} onOpen={() => setTab("rewards")} />
+              <BossRankSummaryCard rank={bossRank} game={game} cityControl={cityControl} onOpen={() => goToTab("rewards")} />
+
+              <AchievementSummaryCard achievements={achievements} onOpen={() => goToTab("achievements")} />
+
+              <IntelFeedSummaryCard feed={intelFeed} onOpen={() => goToTab("intel")} />
+
+              <ContractsSummaryCard board={contractBoard} onOpen={() => goToTab("contracts")} />
+
+              <TimelineSummaryCard timeline={cityTimeline} onOpen={() => goToTab("timeline")} />
+
+              <OperationsBriefSummaryCard brief={operationsBrief} onOpen={() => goToTab("brief")} />
+
+              <BalanceSummaryCard snapshot={balanceSnapshot} visible={game.devPanelVisible} onToggle={() => setGame((old) => ({ ...old, devPanelVisible: !old.devPanelVisible }))} onOpen={() => goToTab("balance")} />
+
+              <LockedSystemsPanel systems={lockedSystemCards} onNavigate={goToTab} compact />
 
               <FirstMovesPanel
                 moves={firstMoves}
                 complete={firstMovesComplete}
                 claimed={firstMovesRewardClaimed}
                 onClaim={claimFirstMovesReward}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
 
               <LoginRewardSummaryCard
@@ -4553,7 +5279,7 @@ export default function App() {
                 claimed={dailyClaimed}
                 streak={game.dailyStreak || 0}
                 reward={dailyReward}
-                onOpen={() => setTab("daily")}
+                onOpen={() => goToTab("daily")}
                 onClaim={claimDailyOrdersReward}
               />
 
@@ -4563,7 +5289,7 @@ export default function App() {
                 rank={liveEventRank}
                 milestoneReady={liveEventMilestoneReady}
                 milestoneClaimed={liveEventMilestoneClaimed}
-                onOpen={() => setTab("event")}
+                onOpen={() => goToTab("event")}
                 onClaim={claimLiveEventMilestone}
               />
 
@@ -4571,13 +5297,13 @@ export default function App() {
                 chapter={nextCampaignChapter}
                 completeCount={campaignClaimedCount}
                 totalCount={campaignChapters.length}
-                onOpen={() => setTab("campaign")}
+                onOpen={() => goToTab("campaign")}
               />
 
               <SkillSummaryCard
                 skillPoints={game.skillPoints || 0}
                 stats={skillStats}
-                onOpen={() => setTab("skills")}
+                onOpen={() => goToTab("skills")}
               />
 
               <BlackMarketSummaryCard
@@ -4585,44 +5311,44 @@ export default function App() {
                 boughtToday={Object.values(ensureBlackMarketState(game).blackMarketDeals || {}).filter(Boolean).length}
                 totalDeals={blackMarketDeals.length}
                 gearStats={gearStats}
-                onOpen={() => setTab("market")}
+                onOpen={() => goToTab("market")}
               />
 
               <SafehouseSummaryCard
                 stats={safehouseStats}
                 safehouseMoves={game.safehouseMoves || 0}
-                onOpen={() => setTab("safehouse")}
+                onOpen={() => goToTab("safehouse")}
               />
 
               <ContactsSummaryCard
                 stats={contactStats}
                 contacts={underworldContacts}
                 game={game}
-                onOpen={() => setTab("contacts")}
+                onOpen={() => goToTab("contacts")}
               />
 
               <LieutenantsSummaryCard
                 stats={lieutenantStats}
                 game={game}
-                onOpen={() => setTab("lieutenants")}
+                onOpen={() => goToTab("lieutenants")}
               />
 
               <VaultSummaryCard
                 stats={vaultStats}
-                onOpen={() => setTab("vault")}
+                onOpen={() => goToTab("vault")}
                 onDeposit={() => depositVault(0.5)}
                 onLaunder={launderVaultCash}
               />
 
 
-              <HeatSummaryCard heat={heat} tier={heatTier} payoutMultiplier={payoutMultiplier} onOpen={() => setTab("heat")} />
+              <HeatSummaryCard heat={heat} tier={heatTier} payoutMultiplier={payoutMultiplier} onOpen={() => goToTab("heat")} />
 
               <CityWireSummaryCard
                 activeEvent={activeStreetOpportunity}
                 leadLabel={cityWireLeadLabel}
                 expired={cityWireExpired}
                 resolved={game.cityWireResolved || 0}
-                onOpen={() => setTab("wire")}
+                onOpen={() => goToTab("wire")}
                 onScout={scoutStreetOpportunity}
               />
 
@@ -4633,7 +5359,7 @@ export default function App() {
                 respect={game.respect || 0}
                 attackBonus={crewAttackBonus}
                 defenseBonus={crewDefenseBonus}
-                onOpen={() => setTab("crew")}
+                onOpen={() => goToTab("crew")}
               />
 
               <TurfSummaryCard
@@ -4642,7 +5368,7 @@ export default function App() {
                 strongholdDistricts={strongholdDistricts}
                 target={nextTurfTarget}
                 targetControl={game.territory?.[nextTurfTarget.id] || 0}
-                onOpen={() => setTab("territory")}
+                onOpen={() => goToTab("territory")}
               />
 
               <FrontNetworkSummaryCard
@@ -4652,18 +5378,18 @@ export default function App() {
                 activeRoutes={supplyStats.activeCount}
                 incomeBonus={supplyStats.incomeBonus}
                 heatBuffer={supplyStats.heatBuffer}
-                onOpen={() => setTab("properties")}
+                onOpen={() => goToTab("properties")}
               />
 
               <RivalPressureSummaryCard
                 topThreat={topRivalThreat}
                 totalPressure={totalRivalPressure}
-                onOpen={() => setTab("revenge")}
+                onOpen={() => goToTab("revenge")}
               />
 
               <div className="command-grid">
                 {pageCards.map((card) => (
-                  <button key={card.tab} className="command-card" onClick={() => setTab(card.tab)}>
+                  <button key={card.tab} className="command-card" onClick={() => goToTab(card.tab)}>
                     <img src={card.image} alt={card.title} />
                     <div>
                       <h3>{card.title}</h3>
@@ -4686,7 +5412,7 @@ export default function App() {
                 milestoneClaimed={liveEventMilestoneClaimed}
                 onToggleDeputy={toggleLiveEventDeputy}
                 onClaim={claimLiveEventMilestone}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
             </Panel>
           )}
@@ -4700,7 +5426,7 @@ export default function App() {
                 streak={game.dailyStreak || 0}
                 reward={dailyReward}
                 dateKey={ensureDailyState(game).dailyOrdersDate}
-                onNavigate={setTab}
+                onNavigate={goToTab}
                 onClaim={claimDailyOrdersReward}
               />
             </Panel>
@@ -4727,8 +5453,9 @@ export default function App() {
             <Panel title="Campaign" sub="Move chapter by chapter toward controlling the city and claim rewards when the work is done.">
               <CampaignProgressPanel
                 chapters={campaignChapters}
+                t={t}
                 onClaim={claimCampaignReward}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
             </Panel>
           )}
@@ -4764,6 +5491,8 @@ export default function App() {
             <Panel title="Safehouse" sub="Upgrade your base of operations and turn it into a real underworld headquarters.">
               <SafehousePanel
                 game={game}
+                t={t}
+                onBlocked={(message) => showResult({ title: "Action Blocked", flavor: message, details: [message] })}
                 rooms={safehouseRooms}
                 stats={safehouseStats}
                 onUpgrade={upgradeSafehouseRoom}
@@ -4775,6 +5504,8 @@ export default function App() {
             <Panel title="Underworld Contacts" sub="Build relationships that improve jobs, heat control, tribute, healing, front income, and vault work.">
               <ContactsPanel
                 game={game}
+                t={t}
+                onNavigate={goToTab}
                 contacts={underworldContacts}
                 stats={contactStats}
                 onUpgrade={upgradeContact}
@@ -4829,7 +5560,7 @@ export default function App() {
                 bossClass={bossClass}
                 crewLoyalty={crewLoyalty}
                 skillStats={skillStats}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
 
               <div className="card-grid">
@@ -4891,7 +5622,7 @@ export default function App() {
               <SkillQuickSpend
                 skillPoints={game.skillPoints || 0}
                 stats={skillStats}
-                onOpen={() => setTab("skills")}
+                onOpen={() => goToTab("skills")}
                 onSpend={spendBossSkill}
               />
 
@@ -4951,6 +5682,7 @@ export default function App() {
                       <Info label="Cost" value={money(property.cost)} />
                       <Info label="Income" value={`${money(currentIncome)}/min`} />
                       <Info label="Next Upgrade" value={level > 0 && level < 5 ? `${money(upgradeCost)} / ${upgradeEnergy} Energy` : level >= 5 ? "Maxed" : "Buy first"} />
+                      {getFrontDamage(game, property.id) > 0 && <Info label="Damage" value={`${getFrontDamage(game, property.id)}% damaged • Repair ${money(getFrontRepairCost(property, game))}`} />}
                       <div className="button-row compact-row">
                         <button className="primary" onClick={() => buyProperty(property)}>
                           Buy Property
@@ -4958,6 +5690,7 @@ export default function App() {
                         <button className="secondary" disabled={level <= 0 || level >= 5} onClick={() => upgradeProperty(property)}>
                           Upgrade Front
                         </button>
+                        {getFrontDamage(game, property.id) > 0 && <button className="secondary" onClick={() => repairPropertyFront(property)}>Repair Front</button>}
                       </div>
                     </ArtCard>
                   );
@@ -5004,6 +5737,8 @@ export default function App() {
             <Panel title="Vault Network" sub="Protect cash, upgrade storage, launder money back into play, and burn the paper trail when the city gets hot.">
               <VaultPanel
                 game={game}
+                t={t}
+                onBlocked={(message) => showResult({ title: "Vault Blocked", flavor: message, details: [message] })}
                 stats={vaultStats}
                 onDepositHalf={() => depositVault(0.5)}
                 onDepositAll={() => depositVault(1)}
@@ -5016,11 +5751,9 @@ export default function App() {
           )}
 
           {tab === "clinic" && (
-            <Panel title="Clinic" sub="Patch yourself up before the next move.">
+            <Panel title="Clinic" sub="Patch yourself up, recover from being dropped, or lay low while the street cools off.">
               <PageHero image="/art/pages/clinic.jpg" title="Backroom Clinic" desc="Health matters. A broke boss cannot hold the city." />
-              <button className="danger" onClick={healBoss}>
-                Heal Boss
-              </button>
+              <ClinicOptions options={clinicOptions} health={game.health} maxHealth={game.maxHealth} onUse={useClinicTreatment} />
             </Panel>
           )}
 
@@ -5034,6 +5767,25 @@ export default function App() {
                 onScout={scoutStreetOpportunity}
                 onResolve={resolveStreetOpportunity}
               />
+            </Panel>
+          )}
+
+          {tab === "pvp" && (
+            <Panel title="PvP Hub" sub="Local simulated player-vs-player foundation. Find targets, start grudges, set defense, and test future multiplayer flow without a backend yet.">
+              <PvpHub
+                game={game}
+                playerProfile={publicProfile}
+                onAttack={attackMockPlayer}
+                onRetaliate={retaliateAgainst}
+                onDefenseChange={updateDefensePosture}
+                onClaimBounty={claimPvpBounty}
+              />
+            </Panel>
+          )}
+
+          {tab === "chat" && (
+            <Panel title="Street Chat" sub="Local prototype chatter that makes the city feel alive. This can connect to Supabase later without changing the player-facing idea.">
+              <StreetChatPanel feed={streetChatFeed} onNavigate={goToTab} />
             </Panel>
           )}
 
@@ -5053,14 +5805,14 @@ export default function App() {
           {tab === "missions" && (
             <Panel title="Mission Board" sub="One board for the next best move, daily orders, campaign progress, city leads, and event pressure.">
               <MissionBoardPanel
-                recommended={recommendedMove}
+                recommended={firstSessionMove}
                 dailyOrders={dailyOrders}
                 activeLead={activeStreetOpportunity}
                 leadLabel={cityWireLeadLabel}
                 nextChapter={nextCampaignChapter}
                 liveEventPhase={liveEventPhase}
                 firstMoves={firstMoves}
-                onNavigate={setTab}
+                onNavigate={goToTab}
               />
             </Panel>
           )}
@@ -5083,9 +5835,52 @@ export default function App() {
             </Panel>
           )}
 
+          {tab === "achievements" && (
+            <Panel title="Achievements" sub="Track milestones that make the boss feel like he is actually building a name in the city.">
+              <AchievementsPanel achievements={achievements} onNavigate={goToTab} />
+            </Panel>
+          )}
+
+          {tab === "intel" && (
+            <Panel title="Intel Feed" sub="Street warnings, opportunities, and next moves pulled into one readable feed.">
+              <IntelFeedPanel feed={intelFeed} onNavigate={goToTab} />
+            </Panel>
+          )}
+
+
+          {tab === "contracts" && (
+            <Panel title="Contracts" sub="Short, clear underworld contracts that point players toward valuable next actions.">
+              <ContractsPanel board={contractBoard} onNavigate={goToTab} />
+            </Panel>
+          )}
+
+          {tab === "timeline" && (
+            <Panel title="City Timeline" sub="A simple view of timers, resets, live events, and what is coming due next.">
+              <CityTimelinePanel timeline={cityTimeline} onNavigate={goToTab} />
+            </Panel>
+          )}
+
+          {tab === "brief" && (
+            <Panel title="Operations Brief" sub="A boss-level snapshot of danger, economy, people, rivals, and the next priorities.">
+              <OperationsBriefPanel brief={operationsBrief} onNavigate={goToTab} />
+            </Panel>
+          )}
+
+          {tab === "balance" && (
+            <Panel title="Balance / Debug Panel" sub="Staff-only testing view for economy, pressure, unlock pacing, and first-session flow.">
+              <BalanceDebugPanel
+                snapshot={balanceSnapshot}
+                systems={lockedSystemCards}
+                visible={game.devPanelVisible}
+                onToggle={() => setGame((old) => ({ ...old, devPanelVisible: !old.devPanelVisible }))}
+                onNavigate={goToTab}
+              />
+            </Panel>
+          )}
+
           {tab === "more" && (
             <Panel title="More" sub="All city systems in one cleaner mobile menu.">
-              <MoreMenuPanel cards={pageCards} onNavigate={setTab} />
+              <MoreMenuPanel cards={pageCards} onNavigate={goToTab} />
             </Panel>
           )}
 
@@ -5099,6 +5894,8 @@ export default function App() {
                 buildLabel={APP_BUILD_LABEL}
                 onOpenInstall={reopenInstallPrompt}
                 onResetInstallPrompt={resetInstallPromptMemory}
+                onExportSave={exportCurrentSave}
+                onImportSave={importCurrentSave}
               />
             </Panel>
           )}
@@ -5121,12 +5918,21 @@ export default function App() {
               />
             </Panel>
           )}
+          </ErrorBoundary>
         </section>
 
         <aside className="sidebar">
           <Panel title="Empire Status">
             <Info label="Build" value={APP_BUILD_LABEL} />
             <Info label="Boss Rank" value={bossRank.title} />
+            <Info label="PvP Power" value={publicProfile.powerScore} />
+            <Info label="Defense Setup" value={game.pvpDefensePosture || "balanced"} />
+            <Info label="PvP Grudges" value={Object.keys(game.pvpGrudges || {}).length} />
+            <Info label="Achievements" value={`${achievements.completed}/${achievements.total}`} />
+            <Info label="Intel Items" value={intelFeed.length} />
+            <Info label="Street Chat" value={`${streetChatFeed.length} active whispers`} />
+            <Info label="Contracts" value={`${contractBoard.readyCount}/${contractBoard.total} ready`} />
+            <Info label="Brief" value={operationsBrief.danger} />
             <Info label="Recommended Move" value={recommendedMove.title} />
             <Info label="App Install" value={isInstalled ? "Installed" : installReady ? "Ready" : "Browser only"} />
             <Info label="Settings" value={`${settings.musicOn ? "Music On" : "Music Off"} • ${settings.sfxOn ? "SFX On" : "SFX Off"}`} />
@@ -5183,21 +5989,35 @@ export default function App() {
 
       <nav className="bottom-nav">
         {[
-          ["command", "Home"],
-          ["jobs", "Jobs"],
-          ["territory", "Turf"],
-          ["rivals", "Fight"],
-          ["crew", "Crew"],
-          ["more", "More"],
-          ["account", "Acct"],
+          ["command", t("home", "Home")],
+          ["jobs", t("jobs", "Jobs")],
+          ["territory", t("turf", "Turf")],
+          ["crew", t("crew", "Crew")],
+          ["more", t("more", "More")],
         ].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={tab === id ? "active" : ""}>
+          <button key={id} onClick={() => goToTab(id)} className={tab === id ? "active" : ""}>
             {label}
           </button>
         ))}
       </nav>
     </div>
     </>
+  );
+}
+
+function NavGroup({ label, items, activeTab, onNavigate }) {
+  const active = items.some(([id]) => id === activeTab);
+  return (
+    <details className={`nav-group ${active ? "active" : ""}`}>
+      <summary>{label}</summary>
+      <div className="nav-group-menu">
+        {items.map(([id, itemLabel]) => (
+          <button key={id} type="button" onClick={() => onNavigate(id)} className={activeTab === id ? "active" : ""}>
+            {itemLabel}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -5417,10 +6237,123 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
           <div className="auth-admin-note">
             <strong>Prototype admin login:</strong> admin / admin123. Admin recovery PIN: 0000. Change it after you sign in.<br />
-            <strong>Build check:</strong> You should see Phase 1.25 on this screen. If not, the wrong folder is running.
+            <strong>Build check:</strong> You should see {APP_PHASE} on this screen. If not, the wrong folder is running.
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+
+function RecommendedNextMoveCard({ move, onNavigate }) {
+  const safeMove = move || { title: "Open Mission Board", detail: "Use the Mission Board to find your next useful move.", tab: "missions" };
+  return (
+    <section className="recommended-next-move-card">
+      <div>
+        <p className="kicker">Recommended Next Move</p>
+        <h3>{safeMove.title}</h3>
+        <p>{safeMove.detail}</p>
+      </div>
+      <button className="primary" type="button" onClick={() => onNavigate(safeMove.tab || "missions")}>Go</button>
+    </section>
+  );
+}
+
+function BalanceSummaryCard({ snapshot, visible, onToggle, onOpen }) {
+  if (!visible) {
+    return (
+      <section className="balance-summary-card muted">
+        <div>
+          <p className="kicker">Dev Balance Panel</p>
+          <h3>Hidden from normal play</h3>
+          <p>Turn it on when testing economy, heat, rival pressure, unlock pacing, and first-session flow.</p>
+        </div>
+        <div className="button-row compact-row">
+          <button className="secondary" type="button" onClick={onToggle}>Show Panel</button>
+          <button className="secondary" type="button" onClick={onOpen}>Open</button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="balance-summary-card">
+      <div>
+        <p className="kicker">Dev Balance Panel</p>
+        <h3>{snapshot.heatRisk} Heat Risk • {snapshot.crewLoyaltyStatus} Loyalty</h3>
+        <p>Income: {money(snapshot.estimatedIncome)}/min • Rival: {snapshot.rivalThreat} • Next: {snapshot.nextMajorUpgrade}</p>
+      </div>
+      <div className="button-row compact-row">
+        <button className="secondary" type="button" onClick={onToggle}>Hide Panel</button>
+        <button className="primary" type="button" onClick={onOpen}>Open Details</button>
+      </div>
+    </section>
+  );
+}
+
+function LockedSystemsPanel({ systems = [], onNavigate, compact = false }) {
+  const locked = systems.filter((system) => !system.unlocked);
+  const unlocked = systems.filter((system) => system.unlocked);
+  const list = compact ? locked.slice(0, 4) : systems;
+
+  if (!list.length) return null;
+
+  return (
+    <section className={`locked-systems-panel ${compact ? "compact" : ""}`}>
+      <div className="section-heading-row">
+        <div>
+          <p className="kicker">System Unlocks</p>
+          <h3>{locked.length ? `${locked.length} systems still locked` : "All tracked systems unlocked"}</h3>
+          <p className="soft-text">Advanced systems stay visible so players know why they matter before they unlock.</p>
+        </div>
+        {!compact && <span>{unlocked.length}/{systems.length} unlocked</span>}
+      </div>
+      <div className="locked-system-grid">
+        {list.map((system) => (
+          <article key={system.id} className={`locked-system-card ${system.unlocked ? "unlocked" : "locked"}`}>
+            <div>
+              <span>{system.unlocked ? "Unlocked" : system.requirement}</span>
+              <strong>{system.name}</strong>
+              <p>{system.reason}</p>
+            </div>
+            <button className="secondary compact-button" type="button" disabled={!system.unlocked} onClick={() => onNavigate(system.tab || "more")}>
+              {system.unlocked ? "Open" : "Locked"}
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BalanceDebugPanel({ snapshot, systems, visible, onToggle, onNavigate }) {
+  return (
+    <div className="balance-debug-panel">
+      <section className={`mission-hero ${visible ? "" : "muted"}`}>
+        <div>
+          <p className="kicker">Staff / Developer View</p>
+          <h3>{visible ? "Balance panel visible" : "Balance panel hidden"}</h3>
+          <p>This panel is for testing pacing. It should not be treated as the main player experience.</p>
+        </div>
+        <button className="primary" type="button" onClick={onToggle}>{visible ? "Hide Dev Panel" : "Show Dev Panel"}</button>
+      </section>
+
+      {visible && (
+        <>
+          <div className="brief-grid">
+            <div className="account-box"><h3>Cash Per Action</h3><p>{snapshot.cashPerAction}</p></div>
+            <div className="account-box"><h3>Income</h3><p>{money(snapshot.estimatedIncome)}/min estimated collection value.</p></div>
+            <div className="account-box"><h3>Heat Risk</h3><p>{snapshot.heatRisk}</p></div>
+            <div className="account-box"><h3>Rival Threat</h3><p>{snapshot.rivalThreat}</p></div>
+            <div className="account-box"><h3>Next Upgrade</h3><p>{snapshot.nextMajorUpgrade}</p></div>
+            <div className="account-box"><h3>Crew Loyalty</h3><p>{snapshot.crewLoyaltyStatus}</p></div>
+            <div className="account-box"><h3>Level Progress</h3><p>{snapshot.levelProgress}</p></div>
+            <div className="account-box"><h3>Unlocked Systems</h3><p>{snapshot.unlockedSystems.length ? snapshot.unlockedSystems.join(", ") : "Only base systems"}</p></div>
+          </div>
+          <LockedSystemsPanel systems={systems} onNavigate={onNavigate} />
+        </>
+      )}
     </div>
   );
 }
@@ -5637,13 +6570,260 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
 
 
 
+
+function AchievementSummaryCard({ achievements, onOpen }) {
+  const percent = Math.round((achievements.completed / Math.max(1, achievements.total)) * 100);
+  return (
+    <section className="achievement-summary-card">
+      <div>
+        <p className="kicker">Achievements</p>
+        <h3>{achievements.completed}/{achievements.total} Badges Unlocked</h3>
+        <p>Long-term milestones now show the player they are building something permanent.</p>
+      </div>
+      <div className="achievement-meter">
+        <span>{percent}%</span>
+        <div className="bar"><i style={{ width: `${percent}%` }} /></div>
+      </div>
+      <button className="secondary" type="button" onClick={onOpen}>Open Achievements</button>
+    </section>
+  );
+}
+
+function IntelFeedSummaryCard({ feed, onOpen }) {
+  const top = feed[0] || { title: "No intel", detail: "The streets are quiet." };
+  return (
+    <section className="intel-summary-card">
+      <div>
+        <p className="kicker">Street Intel</p>
+        <h3>{top.title}</h3>
+        <p>{top.detail}</p>
+      </div>
+      <button className="secondary" type="button" onClick={onOpen}>Open Intel</button>
+    </section>
+  );
+}
+
+function AchievementsPanel({ achievements, onNavigate }) {
+  return (
+    <div className="achievements-panel">
+      <section className="mission-hero achievement-hero">
+        <div>
+          <p className="kicker">Achievements</p>
+          <h3>Every move should leave a mark.</h3>
+          <p>{achievements.completed} of {achievements.total} achievement badges are unlocked. These are local-save prototype badges, but they set up a future account-wide achievement system.</p>
+        </div>
+        <div className="achievement-score-card">
+          <strong>{achievements.completed}/{achievements.total}</strong>
+          <span>Unlocked</span>
+        </div>
+      </section>
+
+      <div className="achievement-grid">
+        {achievements.badges.map((badge) => (
+          <button key={badge.id} type="button" className={`achievement-badge ${badge.done ? "done" : "locked"}`} onClick={() => onNavigate(badge.done ? "rewards" : "missions")}>
+            <span>{badge.done ? "Unlocked" : "Locked"}</span>
+            <strong>{badge.title}</strong>
+            <p>{badge.desc}</p>
+            <small>{badge.reward}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IntelFeedPanel({ feed, onNavigate }) {
+  return (
+    <div className="intel-feed-panel">
+      <section className="mission-hero intel-hero">
+        <div>
+          <p className="kicker">Intel Feed</p>
+          <h3>The city should talk back.</h3>
+          <p>The Intel Feed pulls warnings, rewards, turf status, rival pressure, and next moves into one street-readable feed.</p>
+        </div>
+      </section>
+
+      <div className="intel-feed-list">
+        {feed.map((item, index) => (
+          <button key={`${item.type}-${index}`} type="button" className="intel-feed-row" onClick={() => onNavigate(item.tab || "command")}>
+            <span>{item.type}</span>
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+            <small>Open</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+function ContractsSummaryCard({ board, onOpen }) {
+  const next = board.contracts.find((contract) => contract.ready) || board.contracts[0];
+  return (
+    <section className="intel-summary-card">
+      <div>
+        <p className="kicker">Contract Board</p>
+        <h3>{next?.title || "No contracts"}</h3>
+        <p>{board.readyCount}/{board.total} contracts ready. {next?.detail}</p>
+      </div>
+      <button className="secondary" type="button" onClick={onOpen}>Open Contracts</button>
+    </section>
+  );
+}
+
+function TimelineSummaryCard({ timeline, onOpen }) {
+  const next = timeline.find((item) => item.status === "Ready" || item.status === "Open") || timeline[0];
+  return (
+    <section className="intel-summary-card">
+      <div>
+        <p className="kicker">City Timeline</p>
+        <h3>{next?.title || "Timeline"}</h3>
+        <p>{next?.detail || "Track resets, events, and timed opportunities."}</p>
+      </div>
+      <button className="secondary" type="button" onClick={onOpen}>Open Timeline</button>
+    </section>
+  );
+}
+
+function OperationsBriefSummaryCard({ brief, onOpen }) {
+  return (
+    <section className={`intel-summary-card ${brief.danger === "Critical" ? "danger-brief" : ""}`}>
+      <div>
+        <p className="kicker">Operations Brief</p>
+        <h3>{brief.danger} Situation</h3>
+        <p>{brief.economy} • {brief.rival}</p>
+      </div>
+      <button className="secondary" type="button" onClick={onOpen}>Open Brief</button>
+    </section>
+  );
+}
+
+function ContractsPanel({ board, onNavigate }) {
+  return (
+    <div className="mission-board-panel">
+      <section className="mission-hero">
+        <div>
+          <p className="kicker">Contract Board</p>
+          <h3>Contract Board</h3>
+          <p>{board.readyCount}/{board.total} contracts are ready right now. Contracts are not a new grind. They are a cleaner way to point players toward useful actions.</p>
+        </div>
+      </section>
+      <div className="mission-list">
+        {board.contracts.map((contract) => (
+          <button key={contract.id} type="button" className={`mission-row ${contract.ready ? "ready" : "locked"}`} onClick={() => onNavigate(contract.tab)}>
+            <div>
+              <span>{contract.type}</span>
+              <strong>{contract.title}</strong>
+              <p>{contract.detail}</p>
+            </div>
+            <small>{contract.ready ? "Ready" : "Not Ready"} • {contract.reward} • {contract.risk}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CityTimelinePanel({ timeline, onNavigate }) {
+  return (
+    <div className="mission-board-panel">
+      <section className="mission-hero">
+        <div>
+          <p className="kicker">City Timeline</p>
+          <h3>City Timeline</h3>
+          <p>Timers, resets, and live operations are now easier to understand from one screen.</p>
+        </div>
+      </section>
+      <div className="intel-feed-list">
+        {timeline.map((item, index) => (
+          <button key={`${item.title}-${index}`} type="button" className="intel-feed-row" onClick={() => onNavigate(item.tab || "command")}>
+            <div>
+              <span>{item.status}</span>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+            <small>Open</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OperationsBriefPanel({ brief, onNavigate }) {
+  return (
+    <div className="mission-board-panel">
+      <section className={`mission-hero ${brief.danger === "Critical" ? "danger-brief" : ""}`}>
+        <div>
+          <p className="kicker">Operations Brief</p>
+          <h3>{brief.danger} Operations Brief</h3>
+          <p>The boss now gets a cleaner readout of the operation before making the next move.</p>
+        </div>
+      </section>
+      <div className="brief-grid">
+        <div className="account-box"><h3>Economy</h3><p>{brief.economy}</p></div>
+        <div className="account-box"><h3>City</h3><p>{brief.city}</p></div>
+        <div className="account-box"><h3>People</h3><p>{brief.people}</p></div>
+        <div className="account-box"><h3>Rivals</h3><p>{brief.rival}</p></div>
+      </div>
+      <div className="mission-list">
+        {brief.priorities.map((priority, index) => (
+          <button key={`${priority.title}-${index}`} type="button" className="mission-row ready" onClick={() => onNavigate(priority.tab || "command")}>
+            <div>
+              <span>Priority {index + 1}</span>
+              <strong>{priority.title}</strong>
+              <p>{priority.detail}</p>
+            </div>
+            <small>Go</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+function StreetChatPanel({ feed, onNavigate }) {
+  const safeFeed = Array.isArray(feed) ? feed : [];
+  return (
+    <div className="street-chat-panel">
+      <section className="street-chat-hero">
+        <div>
+          <p className="kicker">Street Chat</p>
+          <h3>The city talks before it moves.</h3>
+          <p className="soft-text">This is a local prototype feed for city chatter. Later, this can be wired into Supabase for real player chat or alliance messages.</p>
+        </div>
+        <button type="button" className="secondary" onClick={() => onNavigate("wire")}>Open City Wire</button>
+      </section>
+      <div className="street-chat-list">
+        {safeFeed.map((item, index) => (
+          <article key={`${item.speaker}-${index}`} className="street-chat-message">
+            <div className="street-chat-avatar">{String(item.speaker || "?").slice(0, 1)}</div>
+            <div>
+              <div className="street-chat-meta">
+                <strong>{item.speaker}</strong>
+                <span>{item.tag}</span>
+              </div>
+              <p>{item.line}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 function MoreMenuPanel({ cards, onNavigate }) {
   const grouped = [
-    ["Progress", ["missions", "rewards", "daily", "campaign", "event", "skills"]],
+    ["Progress", ["missions", "rewards", "achievements", "intel", "contracts", "timeline", "brief", "balance", "daily", "campaign", "event", "skills"]],
     ["Empire", ["safehouse", "properties", "vault", "market"]],
-    ["People", ["crew", "contacts", "lieutenants"]],
-    ["Pressure", ["heat", "revenge", "wire", "clinic"]],
-    ["System", ["settings"]],
+    ["People", ["crew", "contacts", "lieutenants", "chat"]],
+    ["Pressure", ["heat", "rivals", "revenge", "wire", "clinic"]],
+    ["System", ["settings", "account"]],
   ];
 
   const byTab = Object.fromEntries(cards.map((card) => [card.tab, card]));
@@ -5670,7 +6850,8 @@ function MoreMenuPanel({ cards, onNavigate }) {
   );
 }
 
-function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt }) {
+function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange }) {
+  const [importMessage, setImportMessage] = useState("");
   const rows = [
     ["musicOn", "Music", "Keep the underworld soundtrack enabled when the audio layer is added."],
     ["sfxOn", "Sound Effects", "Keep action sounds enabled for taps, jobs, fights, and rewards."],
@@ -5706,6 +6887,20 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
         </section>
 
         <section className="account-box settings-box">
+          <h3>Language</h3>
+          <p className="soft-text">{makeTranslator({ language })("settings.languageNote", "Browser translation may reset during gameplay because React redraws text. Use this in-game language setting for more stable translation.")}</p>
+          <label>
+            Game Language
+            <select value={language || "en"} onChange={(e) => onLanguageChange?.(e.target.value)}>
+              {supportedLanguages.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+          {language === "ar" && <p className="soft-text">{makeTranslator({ language })("settings.arabicNote", "Arabic layout support is experimental while right-to-left screens are being tested.")}</p>}
+        </section>
+
+        <section className="account-box settings-box">
           <h3>App Icon Preview</h3>
           <div className="settings-icon-preview">
             <img src="/icon-512.png" alt="Shadow Syndicate icon preview" />
@@ -5714,6 +6909,24 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
               <p className="soft-text">This is the art players should see when they install the game to their phone or desktop.</p>
             </div>
           </div>
+        </section>
+
+        <section className="account-box settings-box full-span">
+          <h3>Save Backup Tools</h3>
+          <p className="soft-text">Export your local save before major updates, or import a previous Shadow Syndicate save backup.</p>
+          <div className="button-row compact-row">
+            <button className="secondary" type="button" onClick={onExportSave}>Export Save</button>
+            <label className="import-save-button">
+              Import Save
+              <input type="file" accept="application/json,.json" onChange={(e) => setImportMessage(onImportSave(e.target.files?.[0]) || "")} />
+            </label>
+          </div>
+          {importMessage && <p className="setup-success">{importMessage}</p>}
+        </section>
+
+        <section className="account-box settings-box full-span tester-notes-box">
+          <h3>Tester Notes</h3>
+          <p className="soft-text">Current phase: {buildLabel}. Multiplayer is still local/simulated only. Campaign content is limited right now. Export your save before testing big updates. Report bugs with what page you were on, what you clicked, and what happened.</p>
         </section>
 
         <section className="account-box settings-box full-span">
@@ -6264,67 +7477,60 @@ function CampaignSummaryCard({ chapter, completeCount, totalCount, onOpen }) {
   );
 }
 
-function CampaignProgressPanel({ chapters, onClaim, onNavigate }) {
+function CampaignProgressPanel({ chapters = [], onClaim, onNavigate, t = (k, f) => f || k }) {
+  const claimed = chapters.filter((chapter) => chapter.claimed).length;
+  const allClaimed = chapters.length > 0 && claimed >= chapters.length;
+
   return (
     <div className="campaign-panel">
       <div className="campaign-panel-head">
         <div>
           <h3>Story Chapters</h3>
-          <p>
-            These chapters give the player a clear path. Finish the listed goals, claim the reward, and unlock the next push into the city.
-          </p>
+          <p>These chapters are the current story content. Finish goals, claim rewards, then keep building power while the next chapter is being built.</p>
         </div>
         <div className="campaign-score">
           <span>Progress</span>
-          <strong>{chapters.filter((chapter) => chapter.claimed).length}/{chapters.length}</strong>
+          <strong>{claimed}/{chapters.length}</strong>
           <small>chapters claimed</small>
         </div>
       </div>
 
+      {allClaimed && (
+        <section className="campaign-coming-soon">
+          <p className="kicker">{t("moreChapters", "More Campaign Chapters Coming Soon")}</p>
+          <h3>You have completed the current story content.</h3>
+          <p>Keep building turf, fighting rivals, collecting income, completing bounties, and settling grudges while the next chapter is being built.</p>
+        </section>
+      )}
+
       <div className="chapter-grid">
         {chapters.map((chapter, index) => {
-          const doneCount = chapter.requirements.filter((item) => item.done).length;
-          const total = chapter.requirements.length;
+          const requirements = Array.isArray(chapter.requirements) ? chapter.requirements : [];
+          const doneCount = requirements.filter((item) => item.done).length;
+          const total = requirements.length;
+          const statusText = chapter.claimed ? "Reward Claimed" : chapter.unlocked ? chapter.complete ? "Ready to Claim" : `${doneCount}/${total} Goals` : "Locked";
 
           return (
             <div key={chapter.id} className={`chapter-card ${chapter.claimed ? "claimed" : chapter.unlocked ? "open" : "locked"}`}>
-              <img src={chapter.image} alt={chapter.title} />
+              <SafeImage src={chapter.image} alt={chapter.title} />
               <div className="chapter-body">
                 <div className="chapter-title-row">
-                  <div>
-                    <p className="kicker">Chapter {index + 1}</p>
-                    <h3>{chapter.title}</h3>
-                  </div>
-                  <span>{chapter.claimed ? "Claimed" : chapter.unlocked ? `${doneCount}/${total}` : "Locked"}</span>
+                  <div><p className="kicker">Chapter {index + 1}</p><h3>{chapter.title}</h3></div>
+                  <span>{statusText}</span>
                 </div>
                 <p>{chapter.desc}</p>
-
-                <div className="chapter-reward">
-                  <small>Reward</small>
-                  <strong>{chapter.rewardText}</strong>
-                </div>
-
+                <div className="chapter-reward"><small>Reward</small><strong>{chapter.rewardText}</strong></div>
                 <div className="chapter-goals">
-                  {chapter.requirements.map((requirement) => (
-                    <button
-                      key={requirement.label}
-                      type="button"
-                      className={requirement.done ? "done" : "open"}
-                      disabled={!chapter.unlocked}
-                      onClick={() => onNavigate(requirement.action)}
-                    >
-                      <span>{requirement.done ? "Done" : "Goal"}</span>
-                      <strong>{requirement.label}</strong>
+                  {requirements.map((requirement) => (
+                    <button key={requirement.label} type="button" className={requirement.done ? "done" : "open"} disabled={!chapter.unlocked} onClick={() => onNavigate(requirement.action)}>
+                      <span>{requirement.done ? "Done" : "Goal"}</span><strong>{requirement.label}</strong>
                     </button>
                   ))}
                 </div>
-
-                <button
-                  className="primary"
-                  disabled={!chapter.unlocked || !chapter.complete || chapter.claimed}
-                  onClick={() => onClaim(chapter.id)}
-                >
-                  {chapter.claimed ? "Reward Claimed" : chapter.unlocked ? "Claim Chapter Reward" : "Locked"}
+                {!chapter.unlocked && <DisabledReason reason="Complete the previous chapter to unlock this." />}
+                {chapter.claimed && index === chapters.length - 1 && <DisabledReason reason="Current campaign content complete. More chapters are coming soon." />}
+                <button className="primary" disabled={!chapter.unlocked || !chapter.complete || chapter.claimed} onClick={() => onClaim(chapter.id)}>
+                  {chapter.claimed ? "Reward Claimed" : chapter.unlocked ? chapter.complete ? "Claim Chapter Reward" : "Finish Goals First" : "Locked"}
                 </button>
               </div>
             </div>
@@ -6613,55 +7819,56 @@ function ContactsSummaryCard({ stats, contacts, game, onOpen }) {
   );
 }
 
-function ContactsPanel({ game, contacts, stats, onUpgrade, onFavor }) {
+function ContactsPanel({ game, contacts = [], stats = {}, onUpgrade, onFavor, onNavigate, t = (k, f) => f || k }) {
+  const unlockedCount = Number(stats.unlockedCount || 0);
+
   return (
-    <div className="contacts-panel">
+    <div className="contacts-panel readable-panel">
       <section className="contact-hero">
-        <img src="/art/pages/city-wire.jpg" alt="Underworld contacts" />
+        <SafeImage src="/art/pages/city-wire.jpg" alt="Underworld contacts" />
         <div>
-          <p className="kicker">Relationships Matter</p>
+          <p className="kicker">Underworld Contacts</p>
           <h3>Build the network behind the empire</h3>
-          <p>Contacts are permanent progression. Upgrade trust levels to improve core systems, then call favors when the streets get tight.</p>
+          <p>Contacts unlock special benefits as your respect and level grow. They improve jobs, heat control, tribute, healing, and vault work.</p>
         </div>
-        <div className="contact-score-card">
-          <span>Contacts</span>
-          <strong>{stats.unlockedCount}/{contacts.length}</strong>
-          <small>{stats.totalLevels} total trust levels</small>
-        </div>
+        <div className="contact-score-card"><span>Contacts</span><strong>{unlockedCount}/{contacts.length}</strong><small>{stats.totalLevels || 0} total trust levels</small></div>
       </section>
 
+      {unlockedCount <= 0 && (
+        <EmptyState title="No contacts unlocked yet" actionLabel="Run Jobs" onAction={() => onNavigate?.("jobs")}>
+          <p>Run jobs, gain respect, and reach Level 2 to start building underworld relationships.</p>
+          <p>Contacts matter because they unlock favors and permanent bonuses later.</p>
+        </EmptyState>
+      )}
+
       <div className="contact-status-grid">
-        <Stat label="Job Cash" value={`${Math.round((stats.jobIncomeMultiplier - 1) * 100)}%`} helper="contact bonus" />
-        <Stat label="Front Income" value={`${Math.round((stats.frontIncomeMultiplier - 1) * 100)}%`} helper="contact bonus" />
-        <Stat label="Tribute" value={`${Math.round((stats.tributeMultiplier - 1) * 100)}%`} helper="contact bonus" />
-        <Stat label="Heat Buffer" value={`-${stats.heatReduction}`} helper="per noisy move" />
-        <Stat label="Clinic Discount" value={`${Math.round(Math.min(0.35, stats.clinicDiscount) * 100)}%`} helper="street doctor" />
-        <Stat label="Launder Bonus" value={`+${Math.round(stats.launderBonus * 100)}%`} helper="bookkeeper" />
+        <Stat label="Job Cash" value={`${Math.round(((stats.jobIncomeMultiplier || 1) - 1) * 100)}%`} helper="contact bonus" />
+        <Stat label="Front Income" value={`${Math.round(((stats.frontIncomeMultiplier || 1) - 1) * 100)}%`} helper="contact bonus" />
+        <Stat label="Tribute" value={`${Math.round(((stats.tributeMultiplier || 1) - 1) * 100)}%`} helper="contact bonus" />
+        <Stat label="Heat Buffer" value={`-${stats.heatReduction || 0}`} helper="per noisy move" />
+        <Stat label="Clinic Discount" value={`${Math.round(Math.min(0.35, stats.clinicDiscount || 0) * 100)}%`} helper="street doctor" />
+        <Stat label="Launder Bonus" value={`+${Math.round((stats.launderBonus || 0) * 100)}%`} helper="bookkeeper" />
       </div>
 
       <div className="contact-grid">
         {contacts.map((contact) => {
           const level = getContactLevel(game, contact.id);
-          const upgradeLabel = getContactUpgradeLabel(contact, level);
+          const cost = getContactUpgradeCost(contact, level);
+          const reason = level >= (contact.max || 5) ? "Contact is fully connected." : getMissingRequirementMessage({ cash: game.cash, respect: game.respect, tribute: game.tribute, energy: game.energy }, cost, { ready: level <= 0 ? "Ready to unlock" : "Ready to build trust" });
           const favorStatus = getContactFavorStatus(game, contact.id);
           const unlocked = level > 0;
-
+          const upgradeDisabled = level >= (contact.max || 5) || reason !== (level <= 0 ? "Ready to unlock" : "Ready to build trust");
           return (
             <ArtCard key={contact.id} title={contact.name} image={contact.image} tag={contact.tag} desc={contact.desc}>
               <Info label="Trust" value={unlocked ? `Level ${level}/${contact.max || 5}` : "Locked"} />
-              <Info label="Upgrade Cost" value={upgradeLabel} />
+              <Info label="Unlock / Upgrade" value={getContactUpgradeLabel(contact, level)} />
               <Info label="Permanent Effect" value={contact.effect} />
               <Info label="Favor" value={contact.favor?.title || "No favor"} />
-              <Info label="Favor Cost" value={getContactFavorCost(contact.favor || {})} />
-              <Info label="Favor Reward" value={getContactFavorReward(contact.favor || {})} />
-              <Info label="Favor Status" value={unlocked ? favorStatus.label : "Unlock first"} />
+              <Info label="Status" value={unlocked ? favorStatus.label : "Unlock first"} />
+              <DisabledReason reason={upgradeDisabled ? reason : null} />
               <div className="button-row compact-row contact-action-row">
-                <button className="primary" disabled={level >= (contact.max || 5)} onClick={() => onUpgrade(contact)}>
-                  {level <= 0 ? "Unlock Contact" : "Build Trust"}
-                </button>
-                <button className="secondary" disabled={!unlocked || !favorStatus.ready} onClick={() => onFavor(contact)}>
-                  Call Favor
-                </button>
+                <button className="primary" disabled={level >= (contact.max || 5)} onClick={() => onUpgrade(contact)}>{level <= 0 ? "Unlock Contact" : "Build Trust"}</button>
+                <button className="secondary" disabled={!unlocked || !favorStatus.ready} onClick={() => onFavor(contact)}>{!unlocked ? "Unlock First" : favorStatus.ready ? "Call Favor" : favorStatus.label}</button>
               </div>
             </ArtCard>
           );
@@ -6694,93 +7901,70 @@ function VaultSummaryCard({ stats, onOpen, onDeposit, onLaunder }) {
   );
 }
 
-function VaultPanel({ game, stats, onDepositHalf, onDepositAll, onWithdraw, onUpgrade, onLaunder, onBurnTrail }) {
+function VaultPanel({ game, stats, onDepositHalf, onDepositAll, onWithdraw, onUpgrade, onLaunder, onBurnTrail, onBlocked, t = (k, f) => f || k }) {
   const upgradeCost = getVaultUpgradeCost(stats.level);
   const burnCost = getVaultBurnTrailCost(game);
   const launderAmount = getVaultLaunderAmount(game);
   const launderedReturn = Math.round(launderAmount * stats.launderRate);
+  const capacityLeft = Math.max(0, Number(stats.capacity || 0) - Number(stats.current || 0));
+  const depositable = Math.min(Number(game.cash || 0), capacityLeft);
+  const vaultEmpty = Number(stats.current || 0) <= 0;
+  const depositReason = Number(game.cash || 0) <= 0 ? "No available cash to deposit." : capacityLeft <= 0 ? "Vault is full. Upgrade capacity to store more cash." : null;
+  const withdrawReason = vaultEmpty ? t("vaultEmpty", "Vault is empty. Deposit cash first.") : null;
+  const upgradeReason = stats.level >= 5 ? "Vault is already maxed." : getMissingRequirementMessage({ cash: game.cash, tribute: game.tribute, energy: game.energy }, upgradeCost, { ready: "Ready to upgrade" });
 
   return (
-    <section className="vault-panel">
+    <section className="vault-panel readable-panel">
       <div className="vault-hero">
-        <img src="/art/pages/vault.jpg" alt="Vault Network" />
+        <SafeImage src="/art/pages/vault.jpg" alt="Vault Network" />
         <div>
-          <p className="kicker">Protected Money</p>
-          <h3>Turn loose cash into protected power.</h3>
-          <p>
-            The vault is no longer just a storage box. It now has capacity, security levels, laundering operations, and paper-trail cleanup so money management becomes part of the strategy.
-          </p>
+          <p className="kicker">Vault Network</p>
+          <h3>Protected cash is not the same as capacity.</h3>
+          <p>Vault cash is money you have actually deposited. Vault capacity is only the maximum amount the vault can hold.</p>
+          <p className="soft-text">The vault can hold up to {money(stats.capacity)}, but you currently have {money(stats.current)} deposited.</p>
         </div>
-        <div className="vault-score-card">
-          <span>Vault Level</span>
-          <strong>{stats.level}/5</strong>
-          <small>{stats.operations} vault operations completed</small>
-        </div>
+        <div className="vault-score-card"><span>Vault Level</span><strong>{stats.level}/5</strong><small>{stats.operations} vault operations completed</small></div>
       </div>
 
-      <div className="vault-status-grid">
-        <div className="vault-status-card">
-          <span>Vault Cash</span>
-          <strong>{money(stats.current)}</strong>
-          <small>{stats.capacityUsedPct}% of protected capacity used</small>
-        </div>
-        <div className="vault-status-card">
-          <span>Capacity</span>
-          <strong>{money(stats.capacity)}</strong>
-          <small>Upgrade vault security to store more</small>
-        </div>
-        <div className="vault-status-card">
-          <span>Rival Protection</span>
-          <strong>-{stats.rivalProtectionPct}%</strong>
-          <small>Reduces cash loss during retaliation</small>
-        </div>
-        <div className="vault-status-card">
-          <span>Launder Rate</span>
-          <strong>{stats.launderRatePct}%</strong>
-          <small>Returned as usable cash</small>
-        </div>
-        <div className="vault-status-card">
-          <span>Laundered Total</span>
-          <strong>{money(stats.launderedCash)}</strong>
-          <small>Career cleaned cash</small>
-        </div>
-        <div className="vault-status-card">
-          <span>Overflow</span>
-          <strong>{money(stats.overflow)}</strong>
-          <small>{stats.overflow > 0 ? "Upgrade security soon" : "All stored cash protected"}</small>
-        </div>
+      <div className="vault-status-grid clarity-grid">
+        <Stat label="Vault Cash" value={money(stats.current)} helper="protected money deposited" />
+        <Stat label="Vault Capacity" value={money(stats.capacity)} helper="maximum storage" />
+        <Stat label="Available Cash" value={money(game.cash)} helper="cash in hand" />
+        <Stat label="Depositable" value={money(depositable)} helper="can move now" />
+        <Stat label="Withdrawable" value={money(stats.current)} helper="can take out now" />
+        <Stat label="Capacity Left" value={money(capacityLeft)} helper="space remaining" />
       </div>
 
+      {vaultEmpty && <DisabledReason reason="Vault is empty. Deposit cash first before trying to withdraw or launder money." />}
       <Progress label="Protected Capacity" value={stats.protectedCash} max={stats.capacity} />
 
       <div className="vault-action-grid">
-        <Card title="Stash Cash" tag="Protection" desc="Move exposed cash into protected storage before rivals hit back.">
+        <Card title="Deposit Cash" tag="Protection" desc="Move exposed cash into protected storage before rivals hit back.">
           <Info label="Available Cash" value={money(game.cash)} />
-          <Info label="Capacity Left" value={money(Math.max(0, stats.capacity - stats.current))} />
+          <Info label="Capacity Left" value={money(capacityLeft)} />
+          <DisabledReason reason={depositReason} />
           <div className="button-row compact-row">
-            <button className="primary" onClick={onDepositHalf}>Vault 50%</button>
-            <button className="primary" onClick={onDepositAll}>Vault All</button>
-            <button className="secondary" onClick={onWithdraw}>Withdraw All</button>
+            <button className="primary" disabled={Boolean(depositReason)} onClick={() => depositReason ? onBlocked?.(depositReason) : onDepositHalf()}>{depositReason || "Deposit 50%"}</button>
+            <button className="primary" disabled={Boolean(depositReason)} onClick={() => depositReason ? onBlocked?.(depositReason) : onDepositAll()}>Deposit All</button>
+            <button className="secondary" disabled={Boolean(withdrawReason)} onClick={() => withdrawReason ? onBlocked?.(withdrawReason) : onWithdraw()}>{withdrawReason ? "Vault Empty" : t("withdrawAll", "Withdraw All")}</button>
           </div>
         </Card>
 
-        <Card title="Upgrade Vault Security" tag="Level 1-5" desc="Increase capacity, improve rival protection, and slightly clean up Heat at higher levels.">
+        <Card title="Upgrade Vault" tag="Capacity" desc="Increase capacity and improve protection against rival retaliation.">
           <Info label="Current Level" value={`${stats.level}/5`} />
           <Info label="Next Upgrade" value={stats.level >= 5 ? "Maxed" : `${money(upgradeCost.cash)} / ${upgradeCost.tribute} Tribute / ${upgradeCost.energy} Energy`} />
-          <Info label="Next Capacity" value={stats.level >= 5 ? money(stats.capacity) : money(getVaultStats({ ...game, vaultLevel: stats.level + 1 }).capacity)} />
-          <button className="primary" disabled={stats.level >= 5} onClick={onUpgrade}>
-            {stats.level >= 5 ? "Vault Maxed" : "Upgrade Security"}
-          </button>
+          <Info label="Status" value={upgradeReason} />
+          <button className="primary" disabled={stats.level >= 5} onClick={() => upgradeReason !== "Ready to upgrade" ? onBlocked?.(upgradeReason) : onUpgrade()}>{stats.level >= 5 ? "Vault Maxed" : upgradeReason === "Ready to upgrade" ? "Upgrade Vault" : upgradeReason}</button>
         </Card>
 
-        <Card title="Launder Vault Cash" tag="Fronts" desc="Move vault money back into usable cash through fronts. You lose a small cut and gain boss growth.">
+        <Card title="Launder Cash" tag="Fronts" desc="Move vault money back into usable cash through fronts. You lose a small cut and gain boss growth.">
           <Info label="Amount Moved" value={stats.current >= 250 ? money(launderAmount) : "Need $250 vault"} />
           <Info label="Returned Cash" value={stats.current >= 250 ? money(launderedReturn) : "Not ready"} />
           <Info label="Cost" value="6 Energy / small Heat" />
-          <button className="primary" onClick={onLaunder}>Launder Cash</button>
+          <button className="primary" disabled={stats.current < 250} onClick={() => stats.current < 250 ? onBlocked?.("Need at least $250 in vault cash before laundering.") : onLaunder()}>Launder Cash</button>
         </Card>
 
-        <Card title="Burn Paper Trail" tag="Control" desc="Spend protected cash to cool Heat and reduce rival pressure citywide.">
+        <Card title="Burn Trail" tag="Control" desc="Spend protected cash to cool Heat and reduce rival pressure citywide.">
           <Info label="Cost" value={`${money(burnCost.vaultCash)} vault / ${burnCost.tribute} Tribute / ${burnCost.energy} Energy`} />
           <Info label="Effect" value={`-${10 + stats.level * 3} Heat / -${8 + stats.level * 2} Rival Pressure`} />
           <button className="danger" onClick={onBurnTrail}>Burn Trail</button>
@@ -6812,73 +7996,48 @@ function SafehouseSummaryCard({ stats, safehouseMoves, onOpen }) {
   );
 }
 
-function SafehousePanel({ game, rooms, stats, onUpgrade }) {
+function SafehousePanel({ game, rooms = [], stats = {}, onUpgrade, onBlocked, t = (k, f) => f || k }) {
   return (
-    <section className="safehouse-panel">
+    <section className="safehouse-panel readable-panel">
       <div className="safehouse-hero">
-        <img src="/art/gear/war-room.png" alt="Safehouse headquarters" />
+        <SafeImage src="/art/gear/war-room.png" alt="Safehouse headquarters" />
         <div>
-          <p className="kicker">Base of Operations</p>
-          <h3>Build the room behind the empire.</h3>
-          <p>
-            The safehouse is your permanent headquarters. It gives small but useful bonuses that stack with fronts, gear, skills, and crew loyalty.
-          </p>
+          <p className="kicker">Safehouse</p>
+          <h3>Your base gives permanent bonuses.</h3>
+          <p>Your safehouse gives permanent bonuses. Upgrade rooms with cash, tribute, and energy. Every room shows what it does and why an upgrade may be blocked.</p>
         </div>
-        <div className="safehouse-score-card">
-          <span>Total Levels</span>
-          <strong>{stats.totalLevels}/20</strong>
-          <small>{game.safehouseMoves || 0} upgrades completed</small>
-        </div>
+        <div className="safehouse-score-card"><span>Total Levels</span><strong>{stats.totalLevels}/20</strong><small>{game.safehouseMoves || 0} upgrades completed</small></div>
       </div>
 
       <div className="safehouse-status-grid">
-        <div className="safehouse-status-card">
-          <span>Front Income</span>
-          <strong>+{Math.round((stats.incomeMultiplier - 1) * 100)}%</strong>
-          <small>Back Office bonus</small>
-        </div>
-        <div className="safehouse-status-card">
-          <span>Tribute</span>
-          <strong>+{Math.round((stats.tributeMultiplier - 1) * 100)}%</strong>
-          <small>Back Office bonus</small>
-        </div>
-        <div className="safehouse-status-card">
-          <span>Energy / Stamina</span>
-          <strong>+{stats.maxEnergyBonus} / +{stats.maxStaminaBonus}</strong>
-          <small>Garage bonus</small>
-        </div>
-        <div className="safehouse-status-card">
-          <span>Attack / Defense</span>
-          <strong>+{stats.attackBonus} / +{stats.defenseBonus}</strong>
-          <small>Armory bonus</small>
-        </div>
-        <div className="safehouse-status-card">
-          <span>Heat Control</span>
-          <strong>-{stats.heatReduction}</strong>
-          <small>Crew Lounge reduction</small>
-        </div>
-        <div className="safehouse-status-card">
-          <span>Loyalty Boost</span>
-          <strong>+{stats.loyaltyBonus}</strong>
-          <small>Earned from lounge upgrades</small>
-        </div>
+        <Stat label="Front Income" value={`+${Math.round(((stats.incomeMultiplier || 1) - 1) * 100)}%`} helper="Back Office" />
+        <Stat label="Tribute" value={`+${Math.round(((stats.tributeMultiplier || 1) - 1) * 100)}%`} helper="Back Office" />
+        <Stat label="Energy / Stamina" value={`+${stats.maxEnergyBonus || 0} / +${stats.maxStaminaBonus || 0}`} helper="Garage" />
+        <Stat label="Attack / Defense" value={`+${stats.attackBonus || 0} / +${stats.defenseBonus || 0}`} helper="Armory" />
+        <Stat label="Heat Control" value={`-${stats.heatReduction || 0}`} helper="Crew Lounge" />
+        <Stat label="Loyalty Boost" value={`+${stats.loyaltyBonus || 0}`} helper="Crew Lounge" />
       </div>
 
       <div className="safehouse-room-grid">
         {rooms.map((room) => {
           const level = getSafehouseRoomLevel(game, room.id);
-          const maxed = level >= (room.max || 5);
-          const progress = Math.round((level / (room.max || 5)) * 100);
-
+          const max = room.max || 5;
+          const maxed = level >= max;
+          const cost = getSafehouseUpgradeCost(room, level);
+          const ready = !maxed && getMissingRequirementMessage({ cash: game.cash, tribute: game.tribute, energy: game.energy }, cost, { ready: "Ready to upgrade" }) === "Ready to upgrade";
+          const reason = maxed ? "Room is fully upgraded." : getMissingRequirementMessage({ cash: game.cash, tribute: game.tribute, energy: game.energy }, cost, { ready: "Ready to upgrade" });
+          const currentBonus = level <= 0 ? "No bonus yet." : room.effect;
           return (
             <ArtCard key={room.id} title={room.name} image={room.image} tag={room.tag} desc={room.desc}>
-              <Info label="Room Level" value={`${level}/${room.max || 5}`} />
-              <Info label="Effect" value={room.effect} />
-              <Info label="Next Upgrade" value={getSafehouseUpgradeLabel(room, level)} />
-              <Progress label="Room Progress" value={progress} max={100} />
-              <button className="primary" disabled={maxed} onClick={() => onUpgrade(room)}>
-                {maxed ? "Room Maxed" : "Upgrade Room"}
-              </button>
+              <Info label="Room Level" value={`${level}/${max}`} />
+              <Info label="Current Bonus" value={currentBonus} />
+              <Info label="What It Does" value={room.effect} />
+              <Info label="Next Upgrade" value={maxed ? "Maxed" : `${money(cost.cash)} cash / ${cost.tribute} tribute / ${cost.energy} energy`} />
+              <Info label="You Have" value={`${money(game.cash)} cash / ${game.tribute || 0} tribute / ${game.energy || 0} energy`} />
+              <Info label="Status" value={reason} />
+              <Progress label="Room Progress" value={Math.round((level / max) * 100)} max={100} />
+              <DisabledReason reason={!ready ? reason : null} />
+              <button className="primary" disabled={maxed} onClick={() => ready ? onUpgrade(room) : onBlocked?.(reason)}>{maxed ? t("roomMaxed", "Room Maxed") : ready ? t("upgradeRoom", "Upgrade Room") : reason}</button>
             </ArtCard>
           );
         })}
@@ -7270,6 +8429,21 @@ function Panel({ title, sub, children }) {
   );
 }
 
+function HealthStat({ current, max, cash, onHeal }) {
+  const full = Number(current || 0) >= Number(max || 100);
+  const cost = Math.max(150, Math.round(Number(max || 100) * 2));
+  return (
+    <div className={`stat health-stat ${full ? "full" : "hurt"}`}>
+      <span>Health</span>
+      <strong>{current}/{max}</strong>
+      <small>{full ? "full" : `heal ${money(cost)}`}</small>
+      <button type="button" className="mini-heal-button" onClick={onHeal} disabled={full || Number(cash || 0) < cost}>
+        Heal
+      </button>
+    </div>
+  );
+}
+
 function Stat({ label, value, helper }) {
   return (
     <div className="stat">
@@ -7298,7 +8472,7 @@ function Card({ title, tag, desc, children }) {
 function ArtCard({ title, image, tag, desc, children }) {
   return (
     <div className="art-card">
-      <img src={image} alt={title} />
+      <SafeImage src={image} alt={title} />
       <div className="art-card-content">
         <div className="card-head">
           <div>
@@ -7316,7 +8490,7 @@ function ArtCard({ title, image, tag, desc, children }) {
 function PageHero({ image, title, desc }) {
   return (
     <div className="page-hero">
-      <img src={image} alt={title} />
+      <SafeImage src={image} alt={title} />
       <div>
         <h3>{title}</h3>
         <p>{desc}</p>

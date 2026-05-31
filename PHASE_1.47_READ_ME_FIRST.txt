@@ -1,0 +1,4 @@
+Shadow Syndicate Phase 1.47
+Internationalization, Nemesis System, and Stability Cleanup
+
+This phase adds Spanish, German, and experimental Arabic support, improves language fallback, adds Nemesis / revenge bonus / front damage foundations, and keeps the game local-only.
