@@ -1,0 +1,6 @@
+Shadow Syndicate Phase 1.48
+Simplified Player Experience, Revenge Hook, and Mock Store
+
+This phase simplifies new-player stats and navigation, strengthens the revenge loop, adds a mock Tribute Store using fake premium currency only, adds beginner layout controls, adds job choices, and keeps all existing gameplay systems intact.
+
+No real payments, backend, Stripe, Supabase, WebSockets, real multiplayer, or subscriptions were added.

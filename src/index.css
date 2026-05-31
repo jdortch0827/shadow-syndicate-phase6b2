@@ -5737,3 +5737,42 @@ select {
     line-height: 1.05;
   }
 }
+
+/* Phase 1.48 simplified player experience */
+.simplified-hud { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+.simplified-hud .stat.warning { border-color: rgba(239, 68, 68, 0.45); box-shadow: 0 0 0 1px rgba(239,68,68,0.12); }
+.empire-details, .full-empire-details { margin: 0 auto 14px; width: min(1180px, calc(100% - 24px)); border: 1px solid rgba(245,158,11,0.18); border-radius: 18px; background: rgba(0,0,0,0.28); padding: 10px 12px; }
+.full-empire-details { width: 100%; margin: 10px 0 0; }
+.empire-details summary, .full-empire-details summary { cursor: pointer; color: #f7bf52; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.empire-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-top: 12px; }
+.mini-info-card { padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.035); display: grid; gap: 4px; }
+.mini-info-card span { color: rgba(255,255,255,.65); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+.mini-info-card strong { color: #fff7ed; }
+.simplified-main-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 760px; margin-inline: auto; }
+.revenge-alert, .store-prompt-card, .store-warning-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 16px; border-radius: 20px; border: 1px solid rgba(245,158,11,.34); background: linear-gradient(135deg, rgba(245,158,11,.15), rgba(10,10,13,.86)); box-shadow: 0 18px 44px rgba(0,0,0,.28); margin-bottom: 14px; }
+.revenge-alert h3, .store-prompt-card h3, .store-warning-card h3 { margin: 0 0 6px; }
+.revenge-alert p, .store-prompt-card p, .store-warning-card p { margin: 0; }
+.job-choice-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.job-choice { text-align: left; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; padding: 13px; background: rgba(255,255,255,.035); color: inherit; }
+.job-choice.active { border-color: rgba(245,158,11,.55); background: rgba(245,158,11,.13); }
+.job-choice strong, .job-choice span { display: block; }
+.job-choice span { color: rgba(255,255,255,.68); margin-top: 5px; font-size: .88rem; }
+.mock-store-panel { display: grid; gap: 16px; }
+.mock-store-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.mock-store-card { display: grid; gap: 14px; padding: 16px; border-radius: 20px; border: 1px solid rgba(245,158,11,.22); background: rgba(0,0,0,.32); }
+.store-card-footer { display: grid; gap: 8px; }
+.store-card-footer span { color: #f7bf52; font-weight: 900; }
+.beginner-toggle { width: 100%; display: flex; justify-content: space-between; gap: 16px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 18px; border: 1px solid rgba(245,158,11,.25); background: rgba(245,158,11,.08); color: inherit; margin-bottom: 14px; }
+.beginner-toggle strong, .beginner-toggle span { display: block; }
+.beginner-toggle span { color: rgba(255,255,255,.72); }
+.streak-panel { padding: 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); margin-bottom: 14px; }
+.streak-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 10px; }
+.streak-card { padding: 12px; border-radius: 16px; background: rgba(0,0,0,.32); border: 1px solid rgba(245,158,11,.16); display: grid; gap: 4px; }
+.streak-card strong { font-size: 1.8rem; color: #f7bf52; }
+.empire-hub-panel { display: grid; gap: 14px; }
+.empire-summary-alert { margin-bottom: 0; }
+@media (max-width: 680px) {
+  .simplified-main-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .simplified-main-nav button { padding: 10px 6px; font-size: .82rem; }
+  .revenge-alert, .store-prompt-card, .store-warning-card { display: grid; }
+}

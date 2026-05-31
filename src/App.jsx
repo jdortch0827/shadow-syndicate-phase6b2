@@ -27,6 +27,20 @@ import RequirementList from "./components/RequirementList";
 import WhileYouWereGoneCard from "./components/WhileYouWereGoneCard";
 import { shouldRunOfflineEvent, simulateOfflineEvent } from "./logic/offlineEvents";
 import { chooseJobOutcome } from "./logic/jobOutcomes";
+import { mockStoreItems } from "./data/storeItems";
+import { mainNavItems, moreMenuGroups } from "./data/navConfig";
+import { jobChoices } from "./data/jobChoices";
+import { getStorePrompt, applyMockStorePurchase } from "./logic/store";
+import { getOneRecommendedMove } from "./logic/recommendations";
+import { updateActionStreaks, getStreakCards } from "./logic/streaks";
+import SimplifiedStats from "./components/SimplifiedStats";
+import EmpireDetails from "./components/EmpireDetails";
+import RevengeAlert from "./components/RevengeAlert";
+import MockStoreItemCard from "./components/MockStoreItemCard";
+import StorePrompt from "./components/StorePrompt";
+import BeginnerLayoutToggle from "./components/BeginnerLayoutToggle";
+import StreakCard from "./components/StreakCard";
+import JobChoicePanel from "./components/JobChoicePanel";
 
 const SAVE_KEY = "shadow_syndicate_live_source_save_v1";
 const AUTH_USERS_KEY = "shadow_syndicate_auth_users_v1";
@@ -911,9 +925,21 @@ const pageCards = [
   },
   {
     tab: "pvp",
-    title: "PvP Hub",
+    title: "Fight",
     image: "/icon-192.png",
     desc: "Find targets, build grudges, set defense, track revenge, and test multiplayer-style hits locally.",
+  },
+  {
+    tab: "store",
+    title: "Tribute Store",
+    image: "/icon-192.png",
+    desc: "Mock premium store using fake Tribute only. Real purchases are not active.",
+  },
+  {
+    tab: "empire",
+    title: "Empire Hub",
+    image: "/art/gear/war-room.png",
+    desc: "Turf, fronts, vault, safehouse, gear, contacts, and income in one place.",
   },
   {
     tab: "wire",
@@ -1120,7 +1146,7 @@ const defaultTerritory = Object.fromEntries(districts.map((d) => [d.id, d.contro
 
 const startGame = {
   started: false,
-  saveVersion: 3,
+  saveVersion: 5,
   playerId: "local-player",
   crewName: "Rookie Crew",
   profileComplete: false,
@@ -1216,6 +1242,20 @@ const startGame = {
   pvpRetaliationTimers: {},
   frontDamage: {},
   offlineEventRecords: [],
+
+  beginnerLayout: true,
+  simplifiedNav: true,
+  hideFirstNightGuidance: false,
+  mockStorePurchases: {},
+  storePromptsSeen: {},
+  tributePurchases: 0,
+  energyRefillsUsed: 0,
+  staminaRefillsUsed: 0,
+  activeShieldUntil: 0,
+  vaultCapacityBonus: 0,
+  vaultExpansionLevel: 0,
+  respectBoostActions: 0,
+  streaks: {},
   translationVersion: 1,
   lastSeenAt: 0,
   lastOfflineEventAt: 0,
@@ -1534,6 +1574,7 @@ const defaultSettings = {
   notificationsOn: true,
   reducedMotion: false,
   language: "en",
+  beginnerLayout: true,
 };
 
 function loadSettings() {
@@ -2628,9 +2669,19 @@ function normalizeGame(game) {
     pvpRetaliationTimers: { ...startGame.pvpRetaliationTimers, ...((game || {}).pvpRetaliationTimers || {}) },
     frontDamage: { ...startGame.frontDamage, ...((game || {}).frontDamage || {}) },
     offlineEventRecords: Array.isArray((game || {}).offlineEventRecords) ? (game || {}).offlineEventRecords : [],
+    mockStorePurchases: { ...startGame.mockStorePurchases, ...((game || {}).mockStorePurchases || {}) },
+    storePromptsSeen: { ...startGame.storePromptsSeen, ...((game || {}).storePromptsSeen || {}) },
+    streaks: { ...startGame.streaks, ...((game || {}).streaks || {}) },
   };
 
-  merged.saveVersion = Math.max(4, Number(merged.saveVersion || 1));
+  merged.saveVersion = Math.max(5, Number(merged.saveVersion || 1));
+  merged.beginnerLayout = typeof merged.beginnerLayout === "boolean" ? merged.beginnerLayout : true;
+  merged.simplifiedNav = typeof merged.simplifiedNav === "boolean" ? merged.simplifiedNav : true;
+  merged.hideFirstNightGuidance = Boolean(merged.hideFirstNightGuidance);
+  merged.activeShieldUntil = Number(merged.activeShieldUntil || 0);
+  merged.vaultCapacityBonus = Number(merged.vaultCapacityBonus || 0);
+  merged.vaultExpansionLevel = Number(merged.vaultExpansionLevel || 0);
+  merged.respectBoostActions = Number(merged.respectBoostActions || 0);
   merged.language = ["en","nl","es","de","ar"].includes(merged.language) ? merged.language : "en";
   merged.translationVersion = Number(merged.translationVersion || 1);
   merged.lastSeenAt = Number(merged.lastSeenAt || 0);
@@ -2774,6 +2825,8 @@ export default function App() {
   const [startingDistrictId, setStartingDistrictId] = useState(game.startingDistrictId || "docks");
   const [setupProfileImage, setSetupProfileImage] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [selectedJobChoice, setSelectedJobChoice] = useState("standard");
+  const [dismissedStorePrompt, setDismissedStorePrompt] = useState(false);
   const [rewardToast, setRewardToast] = useState(null);
   const [actionResult, setActionResult] = useState(null);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
@@ -2893,6 +2946,35 @@ export default function App() {
   const recommendedMove = getRecommendedMove(game, dailyOrders, activeStreetOpportunity, nextCampaignChapter, heat, topRivalThreat);
   const firstSessionMove = getFirstSessionRecommendedMove(game, { heat, topRivalThreat, fallback: recommendedMove, dailyComplete, dailyClaimed, loginReward, loginRewardClaimed });
   const firstNightProgress = useMemo(() => getFirstNightProgress(game), [game]);
+  const oneRecommendedMove = useMemo(() => getOneRecommendedMove(game, { dailyOrders, heat, topRivalThreat }), [game, dailyOrders, heat, topRivalThreat]);
+  const activeRevengeAlert = useMemo(() => (game.pvpRevengeList || []).find((item) => !item.completed), [game.pvpRevengeList]);
+  const activeNemesisCount = useMemo(() => Object.values(game.pvpNemesisMap || {}).filter(Boolean).length, [game.pvpNemesisMap]);
+  const activeStorePrompt = useMemo(() => dismissedStorePrompt ? null : getStorePrompt(game), [game, dismissedStorePrompt]);
+  const activeStreakCards = useMemo(() => getStreakCards(game), [game.streaks]);
+  const beginnerLayoutOn = Boolean(game.beginnerLayout ?? settings.beginnerLayout ?? true);
+  const coreStats = useMemo(() => [
+    { id: "cash", label: "Cash", value: money(game.cash), helper: `${money(income)}/min`, core: true },
+    { id: "energy", label: "Energy", value: `${game.energy}/${game.maxEnergy}`, helper: "jobs", core: true, warning: Number(game.energy || 0) <= 0 },
+    { id: "health", label: "Health", value: `${game.health}/${game.maxHealth}`, helper: game.health < game.maxHealth ? `Heal ${money(Math.max(100, (game.maxHealth - game.health) * 8))}` : "full", core: true, warning: Number(game.health || 0) < 35 },
+    { id: "heat", label: "Heat", value: `${heat}/100`, helper: heatTier.label, core: true, warning: heat >= 70 },
+    { id: "respect", label: "Respect", value: game.respect || 0, helper: "street rep", core: true },
+  ], [game.cash, game.energy, game.maxEnergy, game.health, game.maxHealth, heat, heatTier.label, game.respect, income]);
+
+  const empireDetailStats = useMemo(() => [
+    { id: "vault", label: "Vault", value: money(game.vault), helper: `L${vaultStats.level} / ${money(vaultStats.capacity + Number(game.vaultCapacityBonus || 0))} cap` },
+    { id: "tribute", label: "Tribute", value: game.tribute, helper: "mock store" },
+    { id: "event", label: "Event", value: game.liveEventInfluence || 0, helper: `rank #${liveEventRank}` },
+    { id: "fronts", label: "Fronts", value: ownedPropertyCount, helper: `${supplyStats.activeCount} routes` },
+    { id: "base", label: "Base", value: safehouseStats.totalLevels, helper: "safehouse" },
+    { id: "contacts", label: "Contacts", value: `${contactStats.unlockedCount}/${underworldContacts.length}`, helper: `${contactStats.totalLevels} trust` },
+    { id: "lieutenants", label: "Lts", value: `${lieutenantStats.unlockedCount}/${lieutenants.length}`, helper: `${lieutenantStats.assignedCount} assigned` },
+    { id: "skill", label: "Skill Pts", value: game.skillPoints || 0, helper: `${skillStats.totalRanks} ranks` },
+    { id: "stamina", label: "Stamina", value: `${game.stamina}/${game.maxStamina}`, helper: "attacks" },
+    { id: "power", label: "Power", value: `${attack}/${defense}`, helper: "atk / def" },
+    { id: "bounties", label: "Bounties", value: Object.keys(game.pvpBountiesClaimed || {}).length, helper: "claimed" },
+    { id: "campaign", label: "Campaign", value: `${campaignClaimedCount}/${campaignChapters.length}`, helper: "chapters" },
+    { id: "daily", label: "Daily", value: dailyClaimed ? "Claimed" : `${dailyOrders.filter((order) => order.done).length}/${dailyOrders.length}`, helper: `${game.dailyStreak || 0} streak` },
+  ], [game, vaultStats, liveEventRank, ownedPropertyCount, supplyStats.activeCount, safehouseStats.totalLevels, contactStats, lieutenantStats, skillStats.totalRanks, attack, defense, campaignClaimedCount, campaignChapters.length, dailyClaimed, dailyOrders]);
   const clinicOptions = useMemo(() => getClinicOptions(game, getContactStats(game).clinicDiscount), [game]);
   const lockedSystemCards = systemUnlocks.map((system) => {
     const level = Number(game.level || 1);
@@ -3279,13 +3361,15 @@ export default function App() {
       const jobContactStats = getContactStats(old);
       const jobLieutenantStats = getLieutenantStats(old);
       const payout = Math.round(rand(job.cash[0], job.cash[1]) * bossClass.income * heatPayoutMultiplier(currentHeat) * jobSkillStats.jobIncomeMultiplier * jobContactStats.jobIncomeMultiplier * jobLieutenantStats.jobIncomeMultiplier);
-      const controlGain = Math.max(1, Math.round(job.control * bossClass.control + jobLieutenantStats.jobControlBonus));
+      const baseControlGain = Math.max(1, Math.round(job.control * bossClass.control + jobLieutenantStats.jobControlBonus));
       const xpAward = job.xp + jobLieutenantStats.jobXpBonus;
       const crackdown = currentHeat >= 85 && rand(1, 100) <= 35;
       const outcome = chooseJobOutcome(old, job);
-      const finalPayout = Math.max(25, Math.round(payout * Number(outcome.cashMod || 1)));
+      const choice = jobChoices.find((item) => item.id === selectedJobChoice) || jobChoices[1];
+      const finalPayout = Math.max(25, Math.round(payout * Number(outcome.cashMod || 1) * Number(choice.cashMod || 1)));
       const finalXpAward = Math.max(1, Math.round(xpAward * Number(outcome.xpMod || 1)));
-      const finalHeatGain = Math.max(0, heatGain + Number(outcome.heatMod || 0));
+      const finalHeatGain = Math.max(0, heatGain + Number(outcome.heatMod || 0) + Number(choice.heatMod || 0));
+      const controlGain = Math.max(1, Math.round(baseControlGain * Number(choice.controlMod || 1)));
       const healthShift = Number(outcome.healthMod || 0);
       const loyaltyShift = Number(outcome.loyaltyMod || 0);
 
@@ -3306,8 +3390,9 @@ export default function App() {
       next = addDailyProgress(next, "jobs", 1);
       next = addDailyProgress(next, "turf", controlGain);
       next = addXp(next, finalXpAward);
+      next = updateActionStreaks(next, "job");
       if (healthShift) next = { ...next, health: clamp(Number(next.health || 0) + healthShift, 0, Number(next.maxHealth || 100)) };
-      if (outcome.rivalPressure) next = addDistrictRivalPressure(next, job.district, Number(outcome.rivalPressure || 0), `${outcome.title} during ${job.name}`);
+      if (outcome.rivalPressure || choice.rivalNotice) next = addDistrictRivalPressure(next, job.district, Number(outcome.rivalPressure || 0) + Number(choice.rivalNotice || 0), `${outcome.title} / ${choice.label} during ${job.name}`);
       next = { ...next, lastJobOutcome: outcome.id };
       next = addDistrictRivalPressure(next, job.district, 3 + job.level, `running ${job.name}`);
       const eventInfluence = getLiveEventJobInfluence(job, finalPayout, controlGain, old);
@@ -3330,7 +3415,7 @@ export default function App() {
           type: "Job Result",
           title: `${job.name} Complete`,
           flavor: "The money came in, but the city pushed back.",
-          details: [`${outcome.title}`, `+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, `-${money(fine)} Fine`, `-${damage} Health`].filter(Boolean),
+          details: [`${choice.label}`, `${outcome.title}`, `+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, `-${money(fine)} Fine`, `-${damage} Health`].filter(Boolean),
         });
 
         return addLog(
@@ -3343,12 +3428,12 @@ export default function App() {
         type: "Job Result",
         title: `${job.name}: ${outcome.title}`,
         flavor: outcome.flavor || "The streets are starting to know your name.",
-        details: [`+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, outcome.rivalPressure ? `+${outcome.rivalPressure} Rival Pressure` : null, eventInfluence > 0 ? `+${eventInfluence} Event Influence` : null].filter(Boolean),
+        details: [`${choice.label}`, `+${money(finalPayout)} Cash`, `+${finalXpAward} XP`, `+${controlGain}% ${districtName(job.district)} Turf`, `+${finalHeatGain} Heat`, healthShift ? `${healthShift} Health` : null, loyaltyShift ? `${loyaltyShift > 0 ? "+" : ""}${loyaltyShift} Crew Loyalty` : null, outcome.rivalPressure ? `+${outcome.rivalPressure} Rival Pressure` : null, eventInfluence > 0 ? `+${eventInfluence} Event Influence` : null].filter(Boolean),
       });
 
       return addLog(
         next,
-        `${job.name}: ${outcome.title}. Earned ${money(finalPayout)}, ${finalXpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${finalHeatGain}.${eventLine}`
+        `${job.name}: ${choice.label} / ${outcome.title}. Earned ${money(finalPayout)}, ${finalXpAward} XP, +${controlGain}% ${districtName(job.district)} control, and Heat +${finalHeatGain}.${eventLine}`
       );
     });
   }
@@ -4608,6 +4693,10 @@ export default function App() {
 
   function attackMockPlayer(target) {
     setGame((old) => {
+      if (Number(old.activeShieldUntil || 0) > Date.now()) {
+        showResult({ title: "Shield Active", flavor: "Lay Low Shield protects what is yours, but you cannot attack while hiding.", details: ["Wait for the shield to expire or keep building your empire."] });
+        return old;
+      }
       if (Number(old.health || 0) <= 0) {
         showResult({ title: "You Got Dropped", flavor: "Use the Clinic before making another risky move.", details: ["Health is too low for a hit."] });
         return old;
@@ -4706,6 +4795,14 @@ export default function App() {
   function retaliateAgainst(item) {
     const target = mockPlayers.find((player) => player.id === item.targetId) || mockPlayers[0];
     setGame((old) => {
+      if (Number(old.activeShieldUntil || 0) > Date.now()) {
+        showResult({ title: "Shield Active", flavor: "You cannot retaliate while Lay Low Shield is active.", details: ["Protection has a cost."] });
+        return old;
+      }
+      if (Number(old.stamina || 0) < 5) {
+        showResult({ title: "Not Enough Stamina", flavor: "Revenge takes energy from the crew.", details: ["Need 5 Stamina", "Try the mock Stamina Refill or wait."] });
+        return old;
+      }
       const bonus = old.pvpRevengeBonuses?.[target.id];
       const bonusActive = bonus && Number(bonus.expiresAt || 0) > Date.now();
       const respectGain = Math.round(Math.max(10, Number(target.powerScore || 100) / 12) * (bonusActive ? 1.25 : 1));
@@ -4726,6 +4823,7 @@ export default function App() {
         cash: Number(old.cash || 0) + cashGain,
         respect: Number(old.respect || 0) + respectGain,
         heat: clamp(Number(old.heat || 0) + 4, 0, 100),
+        stamina: Math.max(0, Number(old.stamina || 0) - 5),
         pvpRevengeWins: Number(old.pvpRevengeWins || 0) + 1,
         pvpBountyProgress: bountyProgress,
         pvpRivalHistory: rivalHistory,
@@ -4733,6 +4831,7 @@ export default function App() {
         pvpGrudges: { ...(old.pvpGrudges || {}), [target.id]: Math.max(0, Number(old.pvpGrudges?.[target.id] || 0) - 12) },
         pvpRevengeBonuses: { ...(old.pvpRevengeBonuses || {}), [target.id]: null },
       };
+      next = updateActionStreaks(next, "revenge");
       const line = `You settled the score with ${target.bossName}. The ${target.crewName} will remember it.`;
       next = addPvpLogEntry(next, { title: "Revenge Completed", text: line, targetId: target.id, outcome: "Retaliation" });
       next = addLog(next, line);
@@ -4860,6 +4959,21 @@ export default function App() {
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     }
+  }
+
+  function toggleBeginnerLayout() {
+    setSettings((old) => ({ ...old, beginnerLayout: !old.beginnerLayout }));
+    setGame((old) => ({ ...old, beginnerLayout: !Boolean(old.beginnerLayout) }));
+  }
+
+  function purchaseMockStoreItem(item) {
+    const action = applyMockStorePurchase(game, item, { clamp });
+    if (action.result) showResult(action.result);
+    if (action.blocked) return;
+    let next = action.nextGame;
+    if (action.logMessage) next = addLog(next, action.logMessage);
+    if (action.streetChatMessage) next = { ...next, lastStreetChatMessage: action.streetChatMessage };
+    setGame(next);
   }
 
   function updateSetting(key) {
@@ -5176,44 +5290,17 @@ export default function App() {
         </div>
       </header>
 
-      <section className="hud">
-        <Stat label="Cash" value={money(game.cash)} helper={`${money(income)}/min`} />
-        <Stat label="Vault" value={money(game.vault)} helper={`L${vaultStats.level} / ${money(vaultStats.capacity)} cap`} />
-        <Stat label="Tribute" value={game.tribute} helper="premium" />
-        <Stat label="Event" value={game.liveEventInfluence || 0} helper={`rank #${liveEventRank}`} />
-        <Stat label="Fronts" value={ownedPropertyCount} helper={`${supplyStats.activeCount} routes`} />
-        <Stat label="Base" value={safehouseStats.totalLevels} helper="safehouse" />
-        <Stat label="Contacts" value={`${contactStats.unlockedCount}/${underworldContacts.length}`} helper={`${contactStats.totalLevels} trust`} />
-        <Stat label="Lts" value={`${lieutenantStats.unlockedCount}/${lieutenants.length}`} helper={`${lieutenantStats.assignedCount} assigned`} />
+      <SimplifiedStats stats={coreStats} beginner={beginnerLayoutOn}>
         <HealthStat current={game.health} max={game.maxHealth} cash={game.cash} onHeal={healBoss} />
-        <Stat label="Heat" value={`${heat}/100`} helper={heatTier.label} />
-        <Stat label="Respect" value={game.respect || 0} helper="street rep" />
-        <Stat label="Skill Pts" value={game.skillPoints || 0} helper={`${skillStats.totalRanks} ranks`} />
-        <Stat label="Energy" value={`${game.energy}/${game.maxEnergy}`} helper="jobs" />
-        <Stat label="Stamina" value={`${game.stamina}/${game.maxStamina}`} helper="attacks" />
-        <Stat label="Power" value={`${attack}/${defense}`} helper="atk / def" />
-      </section>
+      </SimplifiedStats>
+      <EmpireDetails stats={empireDetailStats} defaultOpen={!beginnerLayoutOn} />
 
-      <nav className="main-nav grouped-main-nav" aria-label="Game sections">
-        <button type="button" onClick={() => goToTab("command")} className={tab === "command" ? "active" : ""}>Home</button>
-        <button type="button" onClick={() => goToTab("jobs")} className={tab === "jobs" ? "active" : ""}>Jobs</button>
-        <button type="button" onClick={() => goToTab("territory")} className={tab === "territory" ? "active" : ""}>Turf</button>
-        <button type="button" onClick={() => goToTab("crew")} className={tab === "crew" ? "active" : ""}>Crew</button>
-        <NavGroup label="Progress" activeTab={tab} items={[
-          ["missions", "Mission Board"], ["rewards", t("rewards", "Rewards")], ["achievements", t("achievements", "Achievements")], ["daily", "Daily"], ["campaign", t("campaign", "Campaign")], ["skills", "Skills"]
-        ]} onNavigate={goToTab} />
-        <NavGroup label="Empire" activeTab={tab} items={[
-          ["properties", "Fronts"], ["safehouse", t("safehouse", "Safehouse")], ["vault", t("vault", "Vault")], ["market", "Black Market"]
-        ]} onNavigate={goToTab} />
-        <NavGroup label="Street" activeTab={tab} items={[
-          ["pvp", "PvP Hub"], ["chat", t("streetChat", "Street Chat")], ["intel", "Intel"], ["wire", "City Wire"], ["contacts", t("contacts", "Contacts")], ["lieutenants", "Lieutenants"]
-        ]} onNavigate={goToTab} />
-        <NavGroup label="Risk" activeTab={tab} items={[
-          ["heat", t("heat", "Heat")], ["rivals", t("rivals", "Rivals")], ["revenge", "Revenge"], ["clinic", "Clinic"]
-        ]} onNavigate={goToTab} />
-        <NavGroup label="System" activeTab={tab} items={[
-          ["contracts", t("contracts", "Contracts")], ["timeline", t("timeline", "Timeline")], ["brief", t("brief", "Brief")], ["event", "Event"], ["log", "Log"], ["balance", "Balance"], ["settings", t("settings", "Settings")], ["account", "Account"]
-        ]} onNavigate={goToTab} />
+      <nav className="main-nav simplified-main-nav" aria-label="Game sections">
+        {mainNavItems.map((item) => (
+          <button key={item.tab} type="button" onClick={() => goToTab(item.tab)} className={tab === item.tab || (item.tab === "pvp" && tab === "fight") ? "active" : ""}>
+            {item.label}
+          </button>
+        ))}
       </nav>
 
       <main className="layout">
@@ -5229,9 +5316,17 @@ export default function App() {
                 onNavigate={goToTab}
               />
 
-              <RecommendedNextMoveCard move={firstSessionMove} onNavigate={goToTab} />
+              <RevengeAlert revenge={activeRevengeAlert} nemesisCount={activeNemesisCount} onRetaliate={retaliateAgainst} onOpen={() => goToTab("pvp")} />
 
-              <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
+              <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
+
+              <RecommendedNextMoveCard move={oneRecommendedMove} onNavigate={goToTab} />
+
+              {!game.hideFirstNightGuidance && (
+                <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
+              )}
+
+              <StreakCard streaks={activeStreakCards} />
 
               <MissionBoardSummaryCard
                 recommended={recommendedMove}
@@ -5528,19 +5623,50 @@ export default function App() {
           )}
 
           {tab === "jobs" && (
-            <Panel title="City Jobs" sub="Spend energy to earn cash, XP, and district control.">
+            <Panel title="Jobs" sub="Earn money, build turf, and choose how loud your crew wants to move.">
+              <JobChoicePanel choices={jobChoices} selected={selectedJobChoice} onSelect={setSelectedJobChoice} />
               <div className="card-grid">
-                {jobs.map((job) => (
-                  <ArtCard key={job.id} title={job.name} image={job.image} tag={districtName(job.district)} desc={job.desc}>
-                    <Info label="Energy" value={job.energy} />
-                    <Info label="Payout" value={`${money(job.cash[0])} - ${money(job.cash[1])}`} />
-                    <Info label="XP" value={job.xp} />
-                    <button className="primary" onClick={() => runJob(job)}>
-                      Run Job
-                    </button>
-                  </ArtCard>
-                ))}
+                {jobs.map((job) => {
+                  const choice = jobChoices.find((item) => item.id === selectedJobChoice) || jobChoices[1];
+                  const lowCash = Math.round(job.cash[0] * Number(choice.cashMod || 1));
+                  const highCash = Math.round(job.cash[1] * Number(choice.cashMod || 1));
+                  return (
+                    <ArtCard key={job.id} title={job.name} image={job.image} tag={districtName(job.district)} desc={job.desc}>
+                      <Info label="Choice" value={choice.label} />
+                      <Info label="Energy" value={job.energy} />
+                      <Info label="Expected Payout" value={`${money(lowCash)} - ${money(highCash)}`} />
+                      <Info label="Heat Risk" value={`${Math.max(0, job.level + Number(choice.heatMod || 0))}+`} />
+                      <Info label="XP" value={job.xp} />
+                      <button className="primary" onClick={() => runJob(job)}>
+                        {game.jobsRun < 1 ? "Run First Job" : "Run Job"}
+                      </button>
+                    </ArtCard>
+                  );
+                })}
               </div>
+            </Panel>
+          )}
+
+          {tab === "empire" && (
+            <Panel title="Empire" sub="Turf, fronts, vault, safehouse, contacts, gear, and income in one cleaner section.">
+              <EmpireHubPanel
+                stats={empireDetailStats}
+                damagedFronts={Object.entries(game.frontDamage || {}).filter(([, value]) => value?.damaged)}
+                shieldActive={Number(game.activeShieldUntil || 0) > Date.now()}
+                onNavigate={goToTab}
+              />
+            </Panel>
+          )}
+
+          {tab === "store" && (
+            <Panel title="Tribute Store" sub="Mock store for testing only. Real purchases are not active.">
+              <MockStorePanel
+                items={mockStoreItems}
+                tribute={game.tribute || 0}
+                purchases={game.mockStorePurchases || {}}
+                shieldActive={Number(game.activeShieldUntil || 0) > Date.now()}
+                onPurchase={purchaseMockStoreItem}
+              />
             </Panel>
           )}
 
@@ -5896,6 +6022,10 @@ export default function App() {
                 onResetInstallPrompt={resetInstallPromptMemory}
                 onExportSave={exportCurrentSave}
                 onImportSave={importCurrentSave}
+                language={settings.language}
+                onLanguageChange={updateLanguage}
+                beginnerLayout={beginnerLayoutOn}
+                onToggleBeginnerLayout={toggleBeginnerLayout}
               />
             </Panel>
           )}
@@ -5934,6 +6064,10 @@ export default function App() {
             <Info label="Contracts" value={`${contractBoard.readyCount}/${contractBoard.total} ready`} />
             <Info label="Brief" value={operationsBrief.danger} />
             <Info label="Recommended Move" value={recommendedMove.title} />
+            <Info label="Active Shield" value={Number(game.activeShieldUntil || 0) > Date.now() ? "Active" : "None"} />
+            <Info label="Nemesis Count" value={activeNemesisCount} />
+            <Info label="Daily Reward" value={loginRewardClaimed ? `Claimed • ${game.loginRewardStreak || 0} streak` : getRewardText(loginReward)} />
+            <details className="full-empire-details"><summary>Full Empire Details</summary>
             <Info label="App Install" value={isInstalled ? "Installed" : installReady ? "Ready" : "Browser only"} />
             <Info label="Settings" value={`${settings.musicOn ? "Music On" : "Music Off"} • ${settings.sfxOn ? "SFX On" : "SFX Off"}`} />
             <Info label="Boss Class" value={bossClass.name} />
@@ -5969,6 +6103,7 @@ export default function App() {
             <Info label="Crew Attack Bonus" value={`+${crewAttackBonus}`} />
             <Info label="Crew Defense Bonus" value={`+${crewDefenseBonus}`} />
             <Info label="Lt. Attack/Defense" value={`+${lieutenantStats.attackBonus}/+${lieutenantStats.defenseBonus}`} />
+            </details>
           </Panel>
 
           <Panel title="Boss Bonus">
@@ -5988,15 +6123,9 @@ export default function App() {
       </main>
 
       <nav className="bottom-nav">
-        {[
-          ["command", t("home", "Home")],
-          ["jobs", t("jobs", "Jobs")],
-          ["territory", t("turf", "Turf")],
-          ["crew", t("crew", "Crew")],
-          ["more", t("more", "More")],
-        ].map(([id, label]) => (
-          <button key={id} onClick={() => goToTab(id)} className={tab === id ? "active" : ""}>
-            {label}
+        {mainNavItems.map((item) => (
+          <button key={item.tab} onClick={() => goToTab(item.tab)} className={tab === item.tab ? "active" : ""}>
+            {item.label}
           </button>
         ))}
       </nav>
@@ -6818,19 +6947,11 @@ function StreetChatPanel({ feed, onNavigate }) {
 
 
 function MoreMenuPanel({ cards, onNavigate }) {
-  const grouped = [
-    ["Progress", ["missions", "rewards", "achievements", "intel", "contracts", "timeline", "brief", "balance", "daily", "campaign", "event", "skills"]],
-    ["Empire", ["safehouse", "properties", "vault", "market"]],
-    ["People", ["crew", "contacts", "lieutenants", "chat"]],
-    ["Pressure", ["heat", "rivals", "revenge", "wire", "clinic"]],
-    ["System", ["settings", "account"]],
-  ];
-
   const byTab = Object.fromEntries(cards.map((card) => [card.tab, card]));
 
   return (
     <div className="more-menu-panel">
-      {grouped.map(([group, tabs]) => (
+      {moreMenuGroups.map(({ group, tabs }) => (
         <section key={group} className="more-menu-group">
           <h3>{group}</h3>
           <div className="more-menu-grid">
@@ -6850,7 +6971,61 @@ function MoreMenuPanel({ cards, onNavigate }) {
   );
 }
 
-function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange }) {
+function EmpireHubPanel({ stats = [], damagedFronts = [], shieldActive = false, onNavigate }) {
+  const quickLinks = [
+    ["territory", "Turf", "Take districts and build control."],
+    ["properties", "Fronts", "Buy, repair, and upgrade income fronts."],
+    ["safehouse", "Safehouse", "Permanent base upgrades."],
+    ["vault", "Vault", "Protect cash and launder money."],
+    ["store", "Tribute Store", "Mock boosts and repair tools."],
+    ["contacts", "Contacts", "Underworld help and favors."],
+    ["lieutenants", "Lieutenants", "Assign trusted crew leaders."],
+    ["market", "Black Market", "Daily deals and gear upgrades."],
+  ];
+  return (
+    <div className="empire-hub-panel">
+      <section className="revenge-alert empire-summary-alert">
+        <div>
+          <p className="kicker">Empire Status</p>
+          <h3>{shieldActive ? "Lay Low Shield Active" : damagedFronts.length ? "Front Damage Needs Attention" : "Build What Is Yours"}</h3>
+          <p>{shieldActive ? "Your fronts and vault are protected, but attacking is limited for balance." : damagedFronts.length ? `${damagedFronts.length} front${damagedFronts.length === 1 ? " is" : "s are"} damaged. Repair or retaliate.` : "Your money, turf, and fronts are the reason rivals will come after you."}</p>
+        </div>
+      </section>
+      <EmpireDetails stats={stats} defaultOpen />
+      <div className="more-menu-grid">
+        {quickLinks.map(([tab, title, desc]) => (
+          <button key={tab} className="more-menu-button" type="button" onClick={() => onNavigate(tab)}>
+            <strong>{title}</strong>
+            <span>{desc}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MockStorePanel({ items = [], tribute = 0, purchases = {}, shieldActive = false, onPurchase }) {
+  return (
+    <div className="mock-store-panel">
+      <section className="store-warning-card">
+        <div>
+          <p className="kicker">Testing Only</p>
+          <h3>Mock Store. No Real Purchases.</h3>
+          <p>This uses fake Tribute only so we can test what players might want without adding Stripe, subscriptions, or pay-to-win systems.</p>
+          {shieldActive && <p className="soft-text">Lay Low Shield is active. For balance, attacking while shielded should remain limited in future backend PvP.</p>}
+        </div>
+        <strong>{tribute} Tribute</strong>
+      </section>
+      <div className="mock-store-grid">
+        {items.map((item) => (
+          <MockStoreItemCard key={item.id} item={item} tribute={tribute} owned={purchases[item.id] || 0} onPurchase={onPurchase} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange, beginnerLayout, onToggleBeginnerLayout }) {
   const [importMessage, setImportMessage] = useState("");
   const rows = [
     ["musicOn", "Music", "Keep the underworld soundtrack enabled when the audio layer is added."],
@@ -6870,6 +7045,8 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
           <p className="soft-text">Running: {buildLabel}</p>
         </div>
       </section>
+
+      <BeginnerLayoutToggle enabled={beginnerLayout} onToggle={onToggleBeginnerLayout} />
 
       <div className="account-grid">
         <section className="account-box settings-box">
