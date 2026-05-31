@@ -1,0 +1,17 @@
+Shadow Syndicate Phase 1.50
+Real Page Extraction and First 15-Minute Gameplay Balance
+
+This build continues the existing React + Vite game without rebuilding from scratch.
+
+Focus:
+- Home, Jobs, Fight, Empire, and More page files are present.
+- App.jsx remains the shell/state wiring layer while page content continues moving into page files.
+- Early top stats are simplified.
+- First player guidance and early-game balance are tuned for smoother first-session play.
+
+Run:
+npm install
+npm run dev
+
+Build check:
+npm run build

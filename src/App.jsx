@@ -41,6 +41,13 @@ import StorePrompt from "./components/StorePrompt";
 import BeginnerLayoutToggle from "./components/BeginnerLayoutToggle";
 import StreakCard from "./components/StreakCard";
 import JobChoicePanel from "./components/JobChoicePanel";
+import HomePage from "./pages/HomePage";
+import JobsPage from "./pages/JobsPage";
+import FightPage from "./pages/FightPage";
+import EmpirePage from "./pages/EmpirePage";
+import MorePage from "./pages/MorePage";
+import StorePage from "./pages/StorePage";
+import SettingsPage from "./pages/SettingsPage";
 
 const SAVE_KEY = "shadow_syndicate_live_source_save_v1";
 const AUTH_USERS_KEY = "shadow_syndicate_auth_users_v1";
@@ -1146,7 +1153,7 @@ const defaultTerritory = Object.fromEntries(districts.map((d) => [d.id, d.contro
 
 const startGame = {
   started: false,
-  saveVersion: 5,
+  saveVersion: 6,
   playerId: "local-player",
   crewName: "Rookie Crew",
   profileComplete: false,
@@ -1245,6 +1252,8 @@ const startGame = {
 
   beginnerLayout: true,
   simplifiedNav: true,
+  showAdvancedStatsOnHome: false,
+  empireDetailsOpen: false,
   hideFirstNightGuidance: false,
   mockStorePurchases: {},
   storePromptsSeen: {},
@@ -2674,9 +2683,11 @@ function normalizeGame(game) {
     streaks: { ...startGame.streaks, ...((game || {}).streaks || {}) },
   };
 
-  merged.saveVersion = Math.max(5, Number(merged.saveVersion || 1));
+  merged.saveVersion = Math.max(6, Number(merged.saveVersion || 1));
   merged.beginnerLayout = typeof merged.beginnerLayout === "boolean" ? merged.beginnerLayout : true;
   merged.simplifiedNav = typeof merged.simplifiedNav === "boolean" ? merged.simplifiedNav : true;
+  merged.showAdvancedStatsOnHome = typeof merged.showAdvancedStatsOnHome === "boolean" ? merged.showAdvancedStatsOnHome : false;
+  merged.empireDetailsOpen = typeof merged.empireDetailsOpen === "boolean" ? merged.empireDetailsOpen : false;
   merged.hideFirstNightGuidance = Boolean(merged.hideFirstNightGuidance);
   merged.activeShieldUntil = Number(merged.activeShieldUntil || 0);
   merged.vaultCapacityBonus = Number(merged.vaultCapacityBonus || 0);
@@ -2952,25 +2963,27 @@ export default function App() {
   const activeStorePrompt = useMemo(() => dismissedStorePrompt ? null : getStorePrompt(game), [game, dismissedStorePrompt]);
   const activeStreakCards = useMemo(() => getStreakCards(game), [game.streaks]);
   const beginnerLayoutOn = Boolean(game.beginnerLayout ?? settings.beginnerLayout ?? true);
+  const showAdvancedStatsOnHome = !beginnerLayoutOn || Boolean(game.showAdvancedStatsOnHome);
   const coreStats = useMemo(() => [
     { id: "cash", label: "Cash", value: money(game.cash), helper: `${money(income)}/min`, core: true },
     { id: "energy", label: "Energy", value: `${game.energy}/${game.maxEnergy}`, helper: "jobs", core: true, warning: Number(game.energy || 0) <= 0 },
     { id: "health", label: "Health", value: `${game.health}/${game.maxHealth}`, helper: game.health < game.maxHealth ? `Heal ${money(Math.max(100, (game.maxHealth - game.health) * 8))}` : "full", core: true, warning: Number(game.health || 0) < 35 },
     { id: "heat", label: "Heat", value: `${heat}/100`, helper: heatTier.label, core: true, warning: heat >= 70 },
     { id: "respect", label: "Respect", value: game.respect || 0, helper: "street rep", core: true },
-  ], [game.cash, game.energy, game.maxEnergy, game.health, game.maxHealth, heat, heatTier.label, game.respect, income]);
+    { id: "level", label: "Level", value: game.level || 1, helper: `${game.xp || 0} XP`, core: true },
+  ], [game.cash, game.energy, game.maxEnergy, game.health, game.maxHealth, heat, heatTier.label, game.respect, game.level, game.xp, income]);
 
   const empireDetailStats = useMemo(() => [
-    { id: "vault", label: "Vault", value: money(game.vault), helper: `L${vaultStats.level} / ${money(vaultStats.capacity + Number(game.vaultCapacityBonus || 0))} cap` },
+    { id: "vault", label: "Protected Cash", value: money(game.vault), helper: `${money(vaultStats.capacity + Number(game.vaultCapacityBonus || 0))} capacity` },
     { id: "tribute", label: "Tribute", value: game.tribute, helper: "mock store" },
-    { id: "event", label: "Event", value: game.liveEventInfluence || 0, helper: `rank #${liveEventRank}` },
+    { id: "event", label: "Event Rank", value: `#${liveEventRank}`, helper: `${game.liveEventInfluence || 0} influence` },
     { id: "fronts", label: "Fronts", value: ownedPropertyCount, helper: `${supplyStats.activeCount} routes` },
-    { id: "base", label: "Base", value: safehouseStats.totalLevels, helper: "safehouse" },
+    { id: "base", label: "Safehouse", value: safehouseStats.totalLevels, helper: "room levels" },
     { id: "contacts", label: "Contacts", value: `${contactStats.unlockedCount}/${underworldContacts.length}`, helper: `${contactStats.totalLevels} trust` },
-    { id: "lieutenants", label: "Lts", value: `${lieutenantStats.unlockedCount}/${lieutenants.length}`, helper: `${lieutenantStats.assignedCount} assigned` },
-    { id: "skill", label: "Skill Pts", value: game.skillPoints || 0, helper: `${skillStats.totalRanks} ranks` },
+    { id: "lieutenants", label: "Lieutenants", value: `${lieutenantStats.unlockedCount}/${lieutenants.length}`, helper: `${lieutenantStats.assignedCount} assigned` },
+    { id: "skill", label: "Boss Skills", value: game.skillPoints || 0, helper: `${skillStats.totalRanks} ranks` },
     { id: "stamina", label: "Stamina", value: `${game.stamina}/${game.maxStamina}`, helper: "attacks" },
-    { id: "power", label: "Power", value: `${attack}/${defense}`, helper: "atk / def" },
+    { id: "power", label: "PvP Power", value: `${attack}/${defense}`, helper: "attack / defense" },
     { id: "bounties", label: "Bounties", value: Object.keys(game.pvpBountiesClaimed || {}).length, helper: "claimed" },
     { id: "campaign", label: "Campaign", value: `${campaignClaimedCount}/${campaignChapters.length}`, helper: "chapters" },
     { id: "daily", label: "Daily", value: dailyClaimed ? "Claimed" : `${dailyOrders.filter((order) => order.done).length}/${dailyOrders.length}`, helper: `${game.dailyStreak || 0} streak` },
@@ -5293,7 +5306,7 @@ export default function App() {
       <SimplifiedStats stats={coreStats} beginner={beginnerLayoutOn}>
         <HealthStat current={game.health} max={game.maxHealth} cash={game.cash} onHeal={healBoss} />
       </SimplifiedStats>
-      <EmpireDetails stats={empireDetailStats} defaultOpen={!beginnerLayoutOn} />
+      <EmpireDetails stats={empireDetailStats} defaultOpen={showAdvancedStatsOnHome} showToggle homeMode onToggle={() => setGame((old) => ({ ...old, showAdvancedStatsOnHome: !Boolean(old.showAdvancedStatsOnHome) }))} />
 
       <nav className="main-nav simplified-main-nav" aria-label="Game sections">
         {mainNavItems.map((item) => (
@@ -5307,6 +5320,7 @@ export default function App() {
         <section className="main-panel">
           <ErrorBoundary>
           {tab === "command" && (
+            <HomePage>
             <Panel title="Command Center" sub="Choose your next move and keep the city moving in your direction.">
               <NewPlayerIntroCard
                 bossName={game.bossName}
@@ -5494,6 +5508,7 @@ export default function App() {
                 ))}
               </div>
             </Panel>
+            </HomePage>
           )}
 
           {tab === "event" && (
@@ -5623,6 +5638,7 @@ export default function App() {
           )}
 
           {tab === "jobs" && (
+            <JobsPage>
             <Panel title="Jobs" sub="Earn money, build turf, and choose how loud your crew wants to move.">
               <JobChoicePanel choices={jobChoices} selected={selectedJobChoice} onSelect={setSelectedJobChoice} />
               <div className="card-grid">
@@ -5645,9 +5661,11 @@ export default function App() {
                 })}
               </div>
             </Panel>
+            </JobsPage>
           )}
 
           {tab === "empire" && (
+            <EmpirePage>
             <Panel title="Empire" sub="Turf, fronts, vault, safehouse, contacts, gear, and income in one cleaner section.">
               <EmpireHubPanel
                 stats={empireDetailStats}
@@ -5656,9 +5674,11 @@ export default function App() {
                 onNavigate={goToTab}
               />
             </Panel>
+            </EmpirePage>
           )}
 
           {tab === "store" && (
+            <StorePage>
             <Panel title="Tribute Store" sub="Mock store for testing only. Real purchases are not active.">
               <MockStorePanel
                 items={mockStoreItems}
@@ -5668,6 +5688,7 @@ export default function App() {
                 onPurchase={purchaseMockStoreItem}
               />
             </Panel>
+            </StorePage>
           )}
 
           {tab === "territory" && (
@@ -5897,6 +5918,7 @@ export default function App() {
           )}
 
           {tab === "pvp" && (
+            <FightPage>
             <Panel title="PvP Hub" sub="Local simulated player-vs-player foundation. Find targets, start grudges, set defense, and test future multiplayer flow without a backend yet.">
               <PvpHub
                 game={game}
@@ -5907,6 +5929,7 @@ export default function App() {
                 onClaimBounty={claimPvpBounty}
               />
             </Panel>
+            </FightPage>
           )}
 
           {tab === "chat" && (
@@ -6005,12 +6028,15 @@ export default function App() {
           )}
 
           {tab === "more" && (
+            <MorePage>
             <Panel title="More" sub="All city systems in one cleaner mobile menu.">
               <MoreMenuPanel cards={pageCards} onNavigate={goToTab} />
             </Panel>
+            </MorePage>
           )}
 
           {tab === "settings" && (
+            <SettingsPage>
             <Panel title="Settings & Install" sub="Tune your local game experience, install behavior, and quick quality-of-life options.">
               <SettingsPanel
                 settings={settings}
@@ -6026,8 +6052,11 @@ export default function App() {
                 onLanguageChange={updateLanguage}
                 beginnerLayout={beginnerLayoutOn}
                 onToggleBeginnerLayout={toggleBeginnerLayout}
+                showAdvancedStats={showAdvancedStatsOnHome}
+                onToggleAdvancedStats={() => setGame((old) => ({ ...old, showAdvancedStatsOnHome: !Boolean(old.showAdvancedStatsOnHome) }))}
               />
             </Panel>
+            </SettingsPage>
           )}
 
           {tab === "account" && (
@@ -7025,7 +7054,7 @@ function MockStorePanel({ items = [], tribute = 0, purchases = {}, shieldActive 
   );
 }
 
-function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange, beginnerLayout, onToggleBeginnerLayout }) {
+function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange, beginnerLayout, onToggleBeginnerLayout, showAdvancedStats, onToggleAdvancedStats }) {
   const [importMessage, setImportMessage] = useState("");
   const rows = [
     ["musicOn", "Music", "Keep the underworld soundtrack enabled when the audio layer is added."],
@@ -7047,6 +7076,14 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
       </section>
 
       <BeginnerLayoutToggle enabled={beginnerLayout} onToggle={onToggleBeginnerLayout} />
+
+      <section className="account-box settings-box">
+        <h3>Home Screen Detail</h3>
+        <p className="soft-text">Keep advanced stats collapsed for new players, or show the full Empire Details block when testing balance.</p>
+        <button className="secondary" type="button" onClick={onToggleAdvancedStats}>
+          {showAdvancedStats ? "Hide Advanced Stats on Home" : "Show Advanced Stats on Home"}
+        </button>
+      </section>
 
       <div className="account-grid">
         <section className="account-box settings-box">

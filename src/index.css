@@ -5776,3 +5776,65 @@ select {
   .simplified-main-nav button { padding: 10px 6px; font-size: .82rem; }
   .revenge-alert, .store-prompt-card, .store-warning-card { display: grid; }
 }
+
+/* Phase 1.50: real page extraction and first 15-minute balance polish */
+.page-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.player-quick-stats .stat strong {
+  letter-spacing: -0.02em;
+}
+
+.empire-details-wrap.home-empire-details {
+  margin: 10px auto 14px;
+  width: min(1180px, calc(100% - 24px));
+}
+
+.empire-details-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 18px;
+  background: rgba(8, 8, 10, 0.68);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.24);
+  margin-bottom: 8px;
+}
+
+.empire-details-toolbar strong,
+.empire-details-toolbar span {
+  display: block;
+}
+
+.empire-details-toolbar span {
+  color: rgba(255,255,255,0.68);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.simplified-main-nav button {
+  min-width: 78px;
+}
+
+@media (max-width: 680px) {
+  .empire-details-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .empire-details-toolbar .compact-button {
+    width: 100%;
+  }
+
+  .player-quick-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .player-quick-stats .health-stat-card {
+    grid-column: 1 / -1;
+  }
+}

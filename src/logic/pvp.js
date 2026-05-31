@@ -39,10 +39,14 @@ export function simulatePvpAttack({ game, target, playerAttack, playerDefense, p
 
   const win = ['Clean Win','Messy Win','Close Call'].includes(outcome);
   const cashBase = Math.max(150, Math.round(Number(target.powerScore || 100) * (win ? 5.5 : 1.2)));
-  const cashDelta = win ? cashBase : -Math.min(Number(game.cash || 0), Math.round(cashBase * 0.45));
-  const respectDelta = win ? (outcome === 'Clean Win' ? 18 : outcome === 'Messy Win' ? 12 : 7) : (outcome === 'Rival Trap' ? -12 : -6);
-  const healthLoss = win ? (outcome === 'Clean Win' ? 4 : outcome === 'Messy Win' ? 12 : 18) : (outcome === 'Rival Trap' ? 38 : 25);
-  const heatGain = win ? (outcome === 'Clean Win' ? 5 : 8) : 10;
+  const isNewPlayer = Number(game.level || 1) <= 2 || Number(game.jobsRun || 0) < 5;
+  const maxEarlyLoss = Math.max(75, Math.round(Number(game.cash || 0) * 0.18));
+  const normalLoss = Math.min(Number(game.cash || 0), Math.round(cashBase * 0.45));
+  const cashDelta = win ? cashBase : -Math.min(normalLoss, isNewPlayer ? maxEarlyLoss : normalLoss);
+  const respectDelta = win ? (outcome === 'Clean Win' ? 18 : outcome === 'Messy Win' ? 12 : 7) : (isNewPlayer ? -3 : (outcome === 'Rival Trap' ? -12 : -6));
+  const rawHealthLoss = win ? (outcome === 'Clean Win' ? 4 : outcome === 'Messy Win' ? 12 : 18) : (outcome === 'Rival Trap' ? 38 : 25);
+  const healthLoss = isNewPlayer ? Math.min(rawHealthLoss, 16) : rawHealthLoss;
+  const heatGain = win ? (outcome === 'Clean Win' ? 5 : 8) : (isNewPlayer ? 6 : 10);
   const grudgeGain = win ? 18 + Math.round(Math.max(0, cashDelta) / 300) : 10;
   const turfGain = win ? (outcome === 'Clean Win' ? 3 : 1) : 0;
   const revengeRisk = Math.min(100, Math.round((target.powerScore || 100) / Math.max(80, powerScore || 100) * 35 + grudgeGain));
