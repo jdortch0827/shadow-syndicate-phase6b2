@@ -1,0 +1,16 @@
+Shadow Syndicate Phase 1.51A
+PWA Auto-Update and Cache Safety
+
+This hotfix improves the update flow so installed PWA users should not stay stuck on stale cached builds after Netlify deploys.
+
+Added:
+- version.json
+- app version constants
+- service worker network-first cache strategy
+- service worker update detection
+- Update Ready notice
+- Update Now button
+- app version label in Settings
+- save protection before reload
+
+Local saves remain in localStorage. No backend, push notifications, payments, or real multiplayer were added.

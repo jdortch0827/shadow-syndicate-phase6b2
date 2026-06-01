@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { APP_PHASE, APP_BUILD_NAME, APP_BUILD_LABEL, APP_FULL_PHASE_LABEL } from "./data/phase";
+import { APP_PHASE, APP_VERSION, SAVE_VERSION, APP_BUILD_NAME, APP_BUILD_LABEL, APP_FULL_PHASE_LABEL } from "./data/phase";
 import { systemUnlocks } from "./data/unlocks";
 import { getFirstSessionRecommendedMove } from "./logic/firstSession";
 import { getFirstNightProgress } from "./data/firstNightChecklist";
@@ -1153,7 +1153,7 @@ const defaultTerritory = Object.fromEntries(districts.map((d) => [d.id, d.contro
 
 const startGame = {
   started: false,
-  saveVersion: 6,
+  saveVersion: SAVE_VERSION,
   playerId: "local-player",
   crewName: "Rookie Crew",
   profileComplete: false,
@@ -2849,6 +2849,8 @@ export default function App() {
   });
 
   const [settings, setSettings] = useState(loadSettings);
+  const [updateReady, setUpdateReady] = useState(false);
+  const [updateRegistration, setUpdateRegistration] = useState(null);
   const [offlineEvent, setOfflineEvent] = useState(null);
   const t = useMemo(() => makeTranslator(settings), [settings]);
 
@@ -3048,6 +3050,48 @@ export default function App() {
     }
   }, [settings]);
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const onUpdateReady = (event) => {
+      setUpdateRegistration(event.detail?.registration || window.__SHADOW_SYNDICATE_SW_REGISTRATION__ || null);
+      setUpdateReady(true);
+    };
+
+    window.addEventListener("shadow-syndicate-update-ready", onUpdateReady);
+
+    fetch(`/version.json?ts=${Date.now()}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((remote) => {
+        if (remote?.version && remote.version !== APP_VERSION) {
+          setUpdateReady(true);
+        }
+      })
+      .catch(() => {});
+
+    return () => window.removeEventListener("shadow-syndicate-update-ready", onUpdateReady);
+  }, []);
+
+  function applyAvailableUpdate() {
+    try {
+      if (session?.username) {
+        localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+      localStorage.setItem("shadow_syndicate_last_seen_app_version", APP_VERSION);
+    } catch {
+      // Do not block the update notice if localStorage is temporarily unavailable.
+    }
+
+    const waitingWorker = updateRegistration?.waiting || window.__SHADOW_SYNDICATE_SW_REGISTRATION__?.waiting;
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: "SKIP_WAITING" });
+      return;
+    }
+
+    window.location.reload();
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -5115,6 +5159,7 @@ export default function App() {
           onInstall={handleInstallApp}
           onDismiss={handleDismissInstallPrompt}
         />
+        <UpdateReadyNotice visible={updateReady} onUpdate={applyAvailableUpdate} onDismiss={() => setUpdateReady(false)} />
         <AuthScreen
           users={users}
           onSignIn={signIn}
@@ -5136,6 +5181,7 @@ export default function App() {
           onInstall={handleInstallApp}
           onDismiss={handleDismissInstallPrompt}
         />
+        <UpdateReadyNotice visible={updateReady} onUpdate={applyAvailableUpdate} onDismiss={() => setUpdateReady(false)} />
         <div className="start-page">
         <div className="start-shell">
           <div className="quick-account-bar">
@@ -5258,6 +5304,7 @@ export default function App() {
         onInstall={handleInstallApp}
         onDismiss={handleDismissInstallPrompt}
       />
+      <UpdateReadyNotice visible={updateReady} onUpdate={applyAvailableUpdate} onDismiss={() => setUpdateReady(false)} />
       <RewardToast message={rewardToast} onClose={() => setRewardToast(null)} />
       <ActionResultCard result={actionResult} onClose={() => setActionResult(null)} />
     <div className="app">
@@ -6079,6 +6126,7 @@ export default function App() {
                 installReady={installReady}
                 isInstalled={isInstalled}
                 buildLabel={APP_BUILD_LABEL}
+                appVersion={APP_VERSION}
                 onOpenInstall={reopenInstallPrompt}
                 onResetInstallPrompt={resetInstallPromptMemory}
                 onExportSave={exportCurrentSave}
@@ -6213,6 +6261,24 @@ function NavGroup({ label, items, activeTab, onNavigate }) {
     </details>
   );
 }
+
+function UpdateReadyNotice({ visible, onUpdate, onDismiss }) {
+  if (!visible) return null;
+
+  return (
+    <div className="update-ready-notice" role="status" aria-live="polite">
+      <div>
+        <strong>Update Ready</strong>
+        <p>A new version of Shadow Syndicate is ready. Your progress will be saved.</p>
+      </div>
+      <div className="update-ready-actions">
+        <button className="primary compact-button" type="button" onClick={onUpdate}>Update Now</button>
+        <button className="secondary compact-button" type="button" onClick={onDismiss}>Later</button>
+      </div>
+    </div>
+  );
+}
+
 
 function InstallPromptBanner({ visible, mode, onInstall, onDismiss }) {
   if (!visible) return null;
@@ -7164,7 +7230,7 @@ function MockStorePanel({ items = [], tribute = 0, purchases = {}, shieldActive 
   );
 }
 
-function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange, beginnerLayout, onToggleBeginnerLayout, showAdvancedStats, onToggleAdvancedStats }) {
+function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLabel, appVersion, onOpenInstall, onResetInstallPrompt, onExportSave, onImportSave, language, onLanguageChange, beginnerLayout, onToggleBeginnerLayout, showAdvancedStats, onToggleAdvancedStats }) {
   const [importMessage, setImportMessage] = useState("");
   const rows = [
     ["musicOn", "Music", "Keep the underworld soundtrack enabled when the audio layer is added."],
@@ -7182,6 +7248,7 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
           <h3>Shadow Syndicate App Hub</h3>
           <p className="soft-text">This build now uses the new app icon art and gives the player a simple place to manage install prompts and basic experience settings.</p>
           <p className="soft-text">Running: {buildLabel}</p>
+          <p className="soft-text">App Version: {appVersion}</p>
         </div>
       </section>
 
@@ -7208,6 +7275,7 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
             </button>
           </div>
           <p className="soft-text">If the install prompt was dismissed before, reset it here so you can test it again.</p>
+          <p className="soft-text">Updates: The app checks for new deployed versions when it opens. If an update is ready, use the small Update Ready notice. Your local save remains in localStorage.</p>
         </section>
 
         <section className="account-box settings-box">

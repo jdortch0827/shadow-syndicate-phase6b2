@@ -1,7 +1,7 @@
 {
   "name": "Shadow Syndicate",
   "short_name": "Shadow Syndicate",
-  "description": "Build your crew. Take the streets. Own the city.",
+  "description": "Shadow Syndicate mobile crime strategy prototype.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090909",
@@ -23,5 +23,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "version": "1.51A"
 }
