@@ -1,5 +1,6 @@
 {
-  "version": "1.51A",
-  "phase": "Phase 1.51A",
-  "buildName": "PWA Auto-Update and Cache Safety"
+  "version": "1.52",
+  "phase": "Phase 1.52",
+  "buildName": "PWA Auto-Update and Cache Safety",
+  "name": "Real Page Navigation, Button Routing Fixes, and No-More-Endless-Scroll Mobile Flow"
 }

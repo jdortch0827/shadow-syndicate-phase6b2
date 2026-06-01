@@ -1,0 +1,6 @@
+Shadow Syndicate Phase 1.52
+Real Page Navigation, Button Routing Fixes, and No-More-Endless-Scroll Mobile Flow
+
+This phase keeps Home, Jobs, Fight, Empire, and More as the primary mobile pages.
+Home was cleaned up so it no longer feels like one giant scroll containing every game system.
+Secondary systems remain available through their pages and More routing.

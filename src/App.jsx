@@ -5011,8 +5011,13 @@ export default function App() {
     });
   }
 
-  function goToTab(nextTab) {
-    setTab(nextTab);
+  function goToTab(nextTab, focusTarget = "") {
+    const aliases = { fight: "pvp", home: "command", fullStats: "more", profile: "account", store: "store" };
+    const target = aliases[nextTab] || nextTab || "command";
+    setTab(target);
+    if (focusTarget) {
+      setGame((old) => ({ ...old, pageFocusTarget: focusTarget }));
+    }
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     }
@@ -5367,7 +5372,7 @@ export default function App() {
       </nav>
 
       <main className="layout">
-        <section className="main-panel">
+        <section className="main-panel focused-page-panel">
           <ErrorBoundary>
           {tab === "command" && (
             <HomePage>
@@ -5404,179 +5409,41 @@ export default function App() {
                 onNavigate={goToTab}
               />
 
-              <details className="home-secondary-systems">
-                <summary>More City Systems</summary>
-                <p className="soft-text">Daily orders, campaign, skills, vault, contacts, and other advanced systems are here when you want more detail.</p>
+              <section className="home-page-links">
+                <button className="home-link-card" type="button" onClick={() => goToTab("jobs")}>
+                  <span>Jobs</span>
+                  <strong>Earn Quick Cash</strong>
+                  <small>Run jobs for cash, XP, and heat.</small>
+                </button>
+                <button className="home-link-card" type="button" onClick={() => goToTab("empire")}>
+                  <span>Empire</span>
+                  <strong>Buy First Front</strong>
+                  <small>Turn cash into income and long-term power.</small>
+                </button>
+                <button className="home-link-card" type="button" onClick={() => goToTab("pvp")}>
+                  <span>Fight</span>
+                  <strong>{activeRevengeAlert ? "Get Revenge" : "Pick a Fight"}</strong>
+                  <small>Build respect, settle grudges, and watch your health.</small>
+                </button>
+                <button className="home-link-card" type="button" onClick={() => goToTab("more")}>
+                  <span>More</span>
+                  <strong>View Full Stats</strong>
+                  <small>Profile, settings, save tools, and secondary systems.</small>
+                </button>
+              </section>
 
-              <StreakCard streaks={activeStreakCards} />
-
-              <MissionBoardSummaryCard
-                recommended={recommendedMove}
-                dailyOrders={dailyOrders}
-                activeLead={activeStreetOpportunity}
-                nextChapter={nextCampaignChapter}
-                liveEventPhase={liveEventPhase}
-                onNavigate={goToTab}
-              />
-
-              <BossRankSummaryCard rank={bossRank} game={game} cityControl={cityControl} onOpen={() => goToTab("rewards")} />
-
-              <AchievementSummaryCard achievements={achievements} onOpen={() => goToTab("achievements")} />
-
-              <IntelFeedSummaryCard feed={intelFeed} onOpen={() => goToTab("intel")} />
-
-              <ContractsSummaryCard board={contractBoard} onOpen={() => goToTab("contracts")} />
-
-              <TimelineSummaryCard timeline={cityTimeline} onOpen={() => goToTab("timeline")} />
-
-              <OperationsBriefSummaryCard brief={operationsBrief} onOpen={() => goToTab("brief")} />
-
-              <BalanceSummaryCard snapshot={balanceSnapshot} visible={game.devPanelVisible} onToggle={() => setGame((old) => ({ ...old, devPanelVisible: !old.devPanelVisible }))} onOpen={() => goToTab("balance")} />
-
-              <LockedSystemsPanel systems={lockedSystemCards} onNavigate={goToTab} compact />
-
-              </details>
-
-              <FirstMovesPanel
-                moves={firstMoves}
-                complete={firstMovesComplete}
-                claimed={firstMovesRewardClaimed}
-                onClaim={claimFirstMovesReward}
-                onNavigate={goToTab}
-              />
-
-              <LoginRewardSummaryCard
-                reward={loginReward}
-                claimed={loginRewardClaimed}
-                streak={game.loginRewardStreak || 0}
-                onClaim={claimLoginReward}
-              />
-
-              <DailyOrdersSummaryCard
-                orders={dailyOrders}
-                complete={dailyComplete}
-                claimed={dailyClaimed}
-                streak={game.dailyStreak || 0}
-                reward={dailyReward}
-                onOpen={() => goToTab("daily")}
-                onClaim={claimDailyOrdersReward}
-              />
-
-              <LiveEventSummaryCard
-                game={game}
-                phase={liveEventPhase}
-                rank={liveEventRank}
-                milestoneReady={liveEventMilestoneReady}
-                milestoneClaimed={liveEventMilestoneClaimed}
-                onOpen={() => goToTab("event")}
-                onClaim={claimLiveEventMilestone}
-              />
-
-              <CampaignSummaryCard
-                chapter={nextCampaignChapter}
-                completeCount={campaignClaimedCount}
-                totalCount={campaignChapters.length}
-                onOpen={() => goToTab("campaign")}
-              />
-
-              <SkillSummaryCard
-                skillPoints={game.skillPoints || 0}
-                stats={skillStats}
-                onOpen={() => goToTab("skills")}
-              />
-
-              <BlackMarketSummaryCard
-                marketRep={game.marketRep || 0}
-                boughtToday={Object.values(ensureBlackMarketState(game).blackMarketDeals || {}).filter(Boolean).length}
-                totalDeals={blackMarketDeals.length}
-                gearStats={gearStats}
-                onOpen={() => goToTab("market")}
-              />
-
-              <SafehouseSummaryCard
-                stats={safehouseStats}
-                safehouseMoves={game.safehouseMoves || 0}
-                onOpen={() => goToTab("safehouse")}
-              />
-
-              <ContactsSummaryCard
-                stats={contactStats}
-                contacts={underworldContacts}
-                game={game}
-                onOpen={() => goToTab("contacts")}
-              />
-
-              <LieutenantsSummaryCard
-                stats={lieutenantStats}
-                game={game}
-                onOpen={() => goToTab("lieutenants")}
-              />
-
-              <VaultSummaryCard
-                stats={vaultStats}
-                onOpen={() => goToTab("vault")}
-                onDeposit={() => depositVault(0.5)}
-                onLaunder={launderVaultCash}
-              />
-
-
-              <HeatSummaryCard heat={heat} tier={heatTier} payoutMultiplier={payoutMultiplier} onOpen={() => goToTab("heat")} />
-
-              <CityWireSummaryCard
-                activeEvent={activeStreetOpportunity}
-                leadLabel={cityWireLeadLabel}
-                expired={cityWireExpired}
-                resolved={game.cityWireResolved || 0}
-                onOpen={() => goToTab("wire")}
-                onScout={scoutStreetOpportunity}
-              />
-
-              <CrewSummaryCard
-                crew={game.crew}
-                loyalty={crewLoyalty}
-                standing={crewStanding}
-                respect={game.respect || 0}
-                attackBonus={crewAttackBonus}
-                defenseBonus={crewDefenseBonus}
-                onOpen={() => goToTab("crew")}
-              />
-
-              <TurfSummaryCard
-                cityControl={cityControl}
-                controlledDistricts={controlledDistricts}
-                strongholdDistricts={strongholdDistricts}
-                target={nextTurfTarget}
-                targetControl={game.territory?.[nextTurfTarget.id] || 0}
-                onOpen={() => goToTab("territory")}
-              />
-
-              <FrontNetworkSummaryCard
-                income={income}
-                ownedPropertyCount={ownedPropertyCount}
-                upgradedFrontCount={upgradedFrontCount}
-                activeRoutes={supplyStats.activeCount}
-                incomeBonus={supplyStats.incomeBonus}
-                heatBuffer={supplyStats.heatBuffer}
-                onOpen={() => goToTab("properties")}
-              />
-
-              <RivalPressureSummaryCard
-                topThreat={topRivalThreat}
-                totalPressure={totalRivalPressure}
-                onOpen={() => goToTab("revenge")}
-              />
-
-              <div className="command-grid">
-                {pageCards.map((card) => (
-                  <button key={card.tab} className="command-card" onClick={() => goToTab(card.tab)}>
-                    <img src={card.image} alt={card.title} />
-                    <div>
-                      <h3>{card.title}</h3>
-                      <p>{card.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <section className="recent-activity-card">
+                <p className="kicker">Recent Activity</p>
+                {game.log?.length ? (
+                  <div className="recent-activity-list">
+                    {game.log.slice(0, 4).map((line, index) => (
+                      <div key={`${line}-${index}`} className="recent-activity-row">{line}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="soft-text">No activity yet. Run a job to start building your name.</p>
+                )}
+              </section>
             </Panel>
             </HomePage>
           )}
