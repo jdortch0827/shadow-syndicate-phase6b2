@@ -5357,6 +5357,10 @@ export default function App() {
                 onNavigate={goToTab}
               />
 
+              <details className="home-secondary-systems">
+                <summary>More City Systems</summary>
+                <p className="soft-text">Daily orders, campaign, skills, vault, contacts, and other advanced systems are here when you want more detail.</p>
+
               <StreakCard streaks={activeStreakCards} />
 
               <MissionBoardSummaryCard
@@ -5383,6 +5387,8 @@ export default function App() {
               <BalanceSummaryCard snapshot={balanceSnapshot} visible={game.devPanelVisible} onToggle={() => setGame((old) => ({ ...old, devPanelVisible: !old.devPanelVisible }))} onOpen={() => goToTab("balance")} />
 
               <LockedSystemsPanel systems={lockedSystemCards} onNavigate={goToTab} compact />
+
+              </details>
 
               <FirstMovesPanel
                 moves={firstMoves}

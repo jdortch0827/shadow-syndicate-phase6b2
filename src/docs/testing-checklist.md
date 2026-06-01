@@ -52,3 +52,17 @@
 ## Build
 - npm install passes.
 - npm run build passes.
+
+
+## Phase 1.51 mobile cleanup checks
+
+- Home quick stats show Cash, Energy, Heat, Crew, and one Health card with Heal.
+- Level, XP, Respect, Power, Rank, Vault, Skill Points, Event Rank, and Fronts are not in the Home quick stat row.
+- Empire Details has only one toggle control, not two duplicate expand/hide controls.
+- Recommended Next Move appears near the top of Home.
+- Revenge alert appears only when revenge is active.
+- Home, Jobs, Fight, Empire, and More are reachable from the simplified nav.
+- Bottom navigation remains thumb-friendly on phone width.
+- Major actions show result feedback.
+- First front path is clear from Home and Empire.
+- No white screen occurs on local dev or production build.

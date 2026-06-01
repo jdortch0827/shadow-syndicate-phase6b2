@@ -1,0 +1,12 @@
+Shadow Syndicate Phase 1.51
+Mobile-First Player Flow, One-Thumb Navigation, First 15-Minute Clarity, and Cleanup Audit
+
+Focus:
+- Removed duplicate Empire Details / Hide Full Empire Details controls.
+- Kept Home quick stats focused on Cash, Energy, Heat, Crew, and Health with Heal.
+- Kept Level, XP, Respect, Power, Rank, Vault, and other secondary stats out of the main Home row.
+- Added a collapsible More City Systems area so Home stays action-first.
+- Improved mobile thumb navigation with sticky simplified nav behavior.
+- Updated the testing checklist for Phase 1.51.
+
+No backend, real payments, real multiplayer, Firebase, Supabase, Stripe, or WebSockets were added.
