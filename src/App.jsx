@@ -2965,15 +2965,16 @@ export default function App() {
   const beginnerLayoutOn = Boolean(game.beginnerLayout ?? settings.beginnerLayout ?? true);
   const showAdvancedStatsOnHome = !beginnerLayoutOn || Boolean(game.showAdvancedStatsOnHome);
   const coreStats = useMemo(() => [
-    { id: "cash", label: "Cash", value: money(game.cash), helper: `${money(income)}/min`, core: true },
-    { id: "energy", label: "Energy", value: `${game.energy}/${game.maxEnergy}`, helper: "jobs", core: true, warning: Number(game.energy || 0) <= 0 },
-    { id: "health", label: "Health", value: `${game.health}/${game.maxHealth}`, helper: game.health < game.maxHealth ? `Heal ${money(Math.max(100, (game.maxHealth - game.health) * 8))}` : "full", core: true, warning: Number(game.health || 0) < 35 },
-    { id: "heat", label: "Heat", value: `${heat}/100`, helper: heatTier.label, core: true, warning: heat >= 70 },
-    { id: "respect", label: "Respect", value: game.respect || 0, helper: "street rep", core: true },
-    { id: "level", label: "Level", value: game.level || 1, helper: `${game.xp || 0} XP`, core: true },
-  ], [game.cash, game.energy, game.maxEnergy, game.health, game.maxHealth, heat, heatTier.label, game.respect, game.level, game.xp, income]);
+    { id: "cash", label: "Cash", value: money(game.cash), helper: "Used for upgrades and empire growth.", core: true },
+    { id: "energy", label: "Energy", value: `${game.energy}/${game.maxEnergy}`, helper: "Spent to run jobs. Recovers over time.", core: true, warning: Number(game.energy || 0) <= 0 },
+    { id: "heat", label: "Heat", value: `${heat}/100`, helper: "Higher heat means more risk.", core: true, warning: heat >= 70 },
+    { id: "crew", label: "Crew", value: game.crew || 0, helper: "Helps jobs, fights, and bonuses.", core: true },
+  ], [game.cash, game.energy, game.maxEnergy, game.crew, heat, income]);
 
   const empireDetailStats = useMemo(() => [
+    { id: "level", label: "Level / XP", value: `${game.level || 1}`, helper: `${game.xp || 0} XP toward the next boss level` },
+    { id: "respect", label: "Respect", value: game.respect || 0, helper: "Street reputation for fights and rivalries" },
+    { id: "power", label: "PvP Power", value: `${attack}/${defense}`, helper: "Attack / defense shown mainly on Fight" },
     { id: "vault", label: "Protected Cash", value: money(game.vault), helper: `${money(vaultStats.capacity + Number(game.vaultCapacityBonus || 0))} capacity` },
     { id: "tribute", label: "Tribute", value: game.tribute, helper: "mock store" },
     { id: "event", label: "Event Rank", value: `#${liveEventRank}`, helper: `${game.liveEventInfluence || 0} influence` },
@@ -2983,7 +2984,6 @@ export default function App() {
     { id: "lieutenants", label: "Lieutenants", value: `${lieutenantStats.unlockedCount}/${lieutenants.length}`, helper: `${lieutenantStats.assignedCount} assigned` },
     { id: "skill", label: "Boss Skills", value: game.skillPoints || 0, helper: `${skillStats.totalRanks} ranks` },
     { id: "stamina", label: "Stamina", value: `${game.stamina}/${game.maxStamina}`, helper: "attacks" },
-    { id: "power", label: "PvP Power", value: `${attack}/${defense}`, helper: "attack / defense" },
     { id: "bounties", label: "Bounties", value: Object.keys(game.pvpBountiesClaimed || {}).length, helper: "claimed" },
     { id: "campaign", label: "Campaign", value: `${campaignClaimedCount}/${campaignChapters.length}`, helper: "chapters" },
     { id: "daily", label: "Daily", value: dailyClaimed ? "Claimed" : `${dailyOrders.filter((order) => order.done).length}/${dailyOrders.length}`, helper: `${game.dailyStreak || 0} streak` },
@@ -5337,11 +5337,25 @@ export default function App() {
 
               <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
 
+              <HomeGuideCard
+                cash={game.cash}
+                energy={game.energy}
+                heat={heat}
+                ownedFronts={ownedPropertyCount}
+                onNavigate={goToTab}
+              />
+
               <RecommendedNextMoveCard move={oneRecommendedMove} onNavigate={goToTab} />
 
               {!game.hideFirstNightGuidance && (
                 <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
               )}
+
+              <LockedContentPreview
+                game={game}
+                ownedFronts={ownedPropertyCount}
+                onNavigate={goToTab}
+              />
 
               <StreakCard streaks={activeStreakCards} />
 
@@ -5643,6 +5657,7 @@ export default function App() {
           {tab === "jobs" && (
             <JobsPage>
             <Panel title="Jobs" sub="Earn money, build turf, and choose how loud your crew wants to move.">
+              <PageHelperCard title="Jobs build your cash flow" text="Jobs spend Energy, pay Cash and XP, and raise Heat. Quiet jobs are safer. Aggressive jobs pay more but draw attention." />
               <JobChoicePanel choices={jobChoices} selected={selectedJobChoice} onSelect={setSelectedJobChoice} />
               <div className="card-grid">
                 {jobs.map((job) => {
@@ -5670,6 +5685,15 @@ export default function App() {
           {tab === "empire" && (
             <EmpirePage>
             <Panel title="Empire" sub="Turf, fronts, vault, safehouse, contacts, gear, and income in one cleaner section.">
+              <PageHelperCard title="Empire protects what you earn" text="Fronts create income. Vaults protect cash. Safehouse, contacts, and lieutenants make your crew harder to push around." />
+              {ownedPropertyCount < 1 && (
+                <section className="empty-state-card action-empty-state">
+                  <p className="kicker">First Property Path</p>
+                  <h3>You do not own any fronts yet.</h3>
+                  <p>Run starter jobs, earn cash, then buy your first front so the empire starts producing money.</p>
+                  <button className="primary" type="button" onClick={() => goToTab(game.cash >= 300 ? "properties" : "jobs")}>{game.cash >= 300 ? "Buy First Front" : "Earn Quick Cash"}</button>
+                </section>
+              )}
               <EmpireHubPanel
                 stats={empireDetailStats}
                 damagedFronts={Object.entries(game.frontDamage || {}).filter(([, value]) => value?.damaged)}
@@ -5923,6 +5947,7 @@ export default function App() {
           {tab === "pvp" && (
             <FightPage>
             <Panel title="PvP Hub" sub="Local simulated player-vs-player foundation. Find targets, start grudges, set defense, and test future multiplayer flow without a backend yet.">
+              <PageHelperCard title="Fight creates grudges" text="Fight uses Health, Crew, PvP Power, Respect, and Revenge. Pick targets carefully and hit back when someone takes from you." />
               <PvpHub
                 game={game}
                 playerProfile={publicProfile}
@@ -6033,6 +6058,7 @@ export default function App() {
           {tab === "more" && (
             <MorePage>
             <Panel title="More" sub="All city systems in one cleaner mobile menu.">
+              <PageHelperCard title="Extra tools live here" text="Settings, profile, language, save tools, campaign, events, daily orders, and full stats stay here so Home stays clean." />
               <MoreMenuPanel cards={pageCards} onNavigate={goToTab} />
             </Panel>
             </MorePage>
@@ -6407,6 +6433,81 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 }
 
 
+function PageHelperCard({ title, text }) {
+  return (
+    <section className="page-helper-card">
+      <p className="kicker">Why this matters</p>
+      <h3>{title}</h3>
+      <p>{text}</p>
+    </section>
+  );
+}
+
+function HomeGuideCard({ cash = 0, energy = 0, heat = 0, ownedFronts = 0, onNavigate }) {
+  let title = "Start with a job";
+  let text = "Run starter jobs to earn cash and XP. Use cash to buy your first front, then protect it when rivals come looking.";
+  let button = "Run Starter Job";
+  let tab = "jobs";
+
+  if (energy <= 0) {
+    title = "Out of energy";
+    text = "Build your empire, check fights, or wait for Energy to recover before running more jobs.";
+    button = "View Empire";
+    tab = "empire";
+  } else if (heat >= 70) {
+    title = "Heat is high";
+    text = "Let the streets cool down before pushing more loud jobs.";
+    button = "Manage Heat";
+    tab = "heat";
+  } else if (ownedFronts < 1 && cash >= 300) {
+    title = "Buy your first front";
+    text = "A front gives your empire something to own, collect from, and protect.";
+    button = "Buy First Front";
+    tab = "properties";
+  }
+
+  return (
+    <section className="home-guide-card">
+      <div>
+        <p className="kicker">First 15 Minutes</p>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+      <button className="primary" type="button" onClick={() => onNavigate(tab)}>{button}</button>
+    </section>
+  );
+}
+
+function LockedContentPreview({ game = {}, ownedFronts = 0, onNavigate }) {
+  const cards = [
+    { title: "Bigger Jobs", unlock: "Unlocks at Level 3", reason: "Higher payouts and more heat once your boss has momentum.", ready: Number(game.level || 1) >= 3, tab: "jobs" },
+    { title: "District Control", unlock: "Unlocks after buying your first front", reason: "Take blocks and make the city feel like it belongs to you.", ready: ownedFronts > 0, tab: "territory" },
+    { title: "Rival List", unlock: "Unlocks after your first fight", reason: "Find enemies, build grudges, and get revenge.", ready: Number(game.pvpAttacks || 0) > 0 || Number(game.wins || 0) > 0, tab: "pvp" },
+    { title: "Crew Bonuses", unlock: "Unlocks at 5 Crew", reason: "More crew makes jobs and fights safer.", ready: Number(game.crew || 0) >= 5, tab: "crew" },
+  ];
+
+  return (
+    <section className="locked-preview-card">
+      <div className="locked-preview-heading">
+        <div>
+          <p className="kicker">Coming Up</p>
+          <h3>Locked but worth chasing</h3>
+        </div>
+      </div>
+      <div className="locked-preview-grid">
+        {cards.map((card) => (
+          <button key={card.title} className={`locked-preview-item ${card.ready ? "ready" : "locked"}`} type="button" onClick={() => onNavigate(card.tab)}>
+            <strong>{card.title}</strong>
+            <span>{card.ready ? "Available now" : card.unlock}</span>
+            <small>{card.reason}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+
 function RecommendedNextMoveCard({ move, onNavigate }) {
   const safeMove = move || { title: "Open Mission Board", detail: "Use the Mission Board to find your next useful move.", tab: "missions" };
   return (
@@ -6416,7 +6517,7 @@ function RecommendedNextMoveCard({ move, onNavigate }) {
         <h3>{safeMove.title}</h3>
         <p>{safeMove.detail}</p>
       </div>
-      <button className="primary" type="button" onClick={() => onNavigate(safeMove.tab || "missions")}>Go</button>
+      <button className="primary" type="button" onClick={() => onNavigate(safeMove.tab || "missions")}>{safeMove.cta || "View Next Move"}</button>
     </section>
   );
 }

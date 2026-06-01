@@ -1,0 +1,21 @@
+Shadow Syndicate Phase 1.50C
+Home Stats and Navigation Cleanup
+
+This hotfix keeps the Phase 1.50 page extraction work and cleans the Home screen so it is more action-focused.
+
+Fixes:
+- Removed duplicate non-action Health stat from the main Home stat row.
+- Kept the action Health card with Heal button.
+- Removed Level/XP from the main quick stat row.
+- Moved Level/XP, Respect, PvP Power, and other advanced details into Empire Details / profile-style areas.
+- Added short why-this-matters helper text to key stats.
+- Added a First 15 Minutes helper card on Home.
+- Improved Recommended Next Move button text so it is action-based.
+- Added locked-but-tempting preview cards for upcoming systems.
+- Added cleaner helper/empty state text to Jobs, Fight, Empire, and More.
+- Improved mobile stat layout and tap target spacing.
+
+Build:
+- npm install passed.
+- npm run build passed.
+- dist was removed before packaging.

@@ -5883,3 +5883,103 @@ select {
   .player-quick-stats .stat { min-height: 96px; }
   .player-quick-stats .health-stat { grid-column: span 2; }
 }
+
+/* Phase 1.50C Home stats and navigation cleanup */
+.player-quick-stats.simplified-hud {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.player-quick-stats .stat small,
+.player-quick-stats .health-stat small {
+  line-height: 1.25;
+}
+
+.home-guide-card,
+.page-helper-card,
+.locked-preview-card,
+.empty-state-card.action-empty-state {
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.09), rgba(8, 8, 10, 0.78));
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+.home-guide-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-guide-card h3,
+.page-helper-card h3,
+.locked-preview-card h3,
+.empty-state-card.action-empty-state h3 {
+  margin: 0 0 6px;
+}
+
+.home-guide-card p,
+.page-helper-card p,
+.locked-preview-card p,
+.empty-state-card.action-empty-state p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.locked-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.locked-preview-item {
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  padding: 13px;
+  min-height: 118px;
+}
+
+.locked-preview-item.ready {
+  border-color: rgba(245, 158, 11, 0.36);
+  background: rgba(245, 158, 11, 0.09);
+}
+
+.locked-preview-item span {
+  color: #f7bf52;
+  font-weight: 800;
+}
+
+.locked-preview-item small {
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.25;
+}
+
+.recommended-next-move-card .primary,
+.home-guide-card .primary,
+.action-empty-state .primary {
+  min-height: 48px;
+  min-width: 150px;
+}
+
+@media (max-width: 980px) {
+  .player-quick-stats.simplified-hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .player-quick-stats .health-stat { grid-column: 1 / -1; }
+  .home-guide-card { display: grid; }
+  .home-guide-card .primary { width: 100%; }
+}
+
+@media (max-width: 560px) {
+  .player-quick-stats.simplified-hud { grid-template-columns: 1fr; }
+  .player-quick-stats .stat,
+  .player-quick-stats .health-stat { min-height: auto; }
+  .simplified-main-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .simplified-main-nav button { min-width: 0; padding-inline: 5px; }
+}
