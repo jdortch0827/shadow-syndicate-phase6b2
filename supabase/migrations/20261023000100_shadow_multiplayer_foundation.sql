@@ -53,9 +53,7 @@ alter table public.ss_action_receipts enable row level security;
 create policy "worlds read authenticated" on public.ss_worlds for select to authenticated using(true);
 create policy "player read authenticated" on public.ss_players for select to authenticated using(true);
 create policy "player self create" on public.ss_players for insert to authenticated with check(user_id=(select auth.uid()));
-create policy "member read same world" on public.ss_world_members for select to authenticated using(
- exists(select 1 from public.ss_world_members m where m.world_id=ss_world_members.world_id and m.user_id=(select auth.uid()))
-);
+create policy "member read own record" on public.ss_world_members for select to authenticated using(user_id=(select auth.uid()));
 create policy "own troop read" on public.ss_troop_stacks for select to authenticated using(user_id=(select auth.uid()));
 create policy "own battle reports" on public.ss_battle_reports for select to authenticated using(attacker_id=(select auth.uid()) or defender_id=(select auth.uid()));
 create policy "own receipts read" on public.ss_action_receipts for select to authenticated using(user_id=(select auth.uid()));
