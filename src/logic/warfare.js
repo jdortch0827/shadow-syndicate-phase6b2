@@ -34,6 +34,10 @@ export function resolveRaid(game, targetId, deployment) {
   const target = TARGETS.find(t => t.id === targetId);
   if (!target) return { ok: false, error: "Unknown target." };
   if (count(game.level) < target.level) return { ok: false, error: "Target is locked." };
+  const raidEnergy = 8;
+  if (count(game.energy) < raidEnergy) return { ok: false, error: "A raid requires 8 energy." };
+  const readyAt = Number(game.warfare?.raidCooldowns?.[target.id] || 0);
+  if (readyAt > Date.now()) return { ok: false, error: "This position is on cooldown." };
   const available = getTroopCounts(game);
   const selected = {};
   for (const id of Object.keys(TROOPS)) {
@@ -55,7 +59,7 @@ export function resolveRaid(game, targetId, deployment) {
   const reward = won ? target.reward : 0;
   const report = { id: `raid-${Date.now()}`, target: target.name, won, deployed: selected, wounded, attack: army.attack, targetPower: target.power, reward, at: Date.now() };
   const hospital = Object.fromEntries(Object.keys(TROOPS).map(id => [id, count(game.warfare?.hospital?.[id]) + wounded[id]]));
-  return { ok: true, report, game: { ...game, cash: count(game.cash) + reward, warfare: { ...(game.warfare || {}), troops, hospital, reports: [report, ...(game.warfare?.reports || [])].slice(0, 20) } }, message: won ? `Victory at ${target.name}: +$${reward}.` : `Defeat at ${target.name}. Wounded moved to hospital.` };
+  return { ok: true, report, game: { ...game, cash: count(game.cash) + reward, energy: count(game.energy) - raidEnergy, warfare: { ...(game.warfare || {}), troops, hospital, raidCooldowns: { ...(game.warfare?.raidCooldowns || {}), [target.id]: Date.now() + 60000 }, reports: [report, ...(game.warfare?.reports || [])].slice(0, 20) } }, message: won ? `Victory at ${target.name}: +$${reward}.` : `Defeat at ${target.name}. Wounded moved to hospital.` };
 }
 export function healTroops(game) {
   const hospital = Object.fromEntries(Object.keys(TROOPS).map(id => [id, count(game.warfare?.hospital?.[id])]));
