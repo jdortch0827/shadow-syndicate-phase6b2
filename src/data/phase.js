@@ -1,6 +1,6 @@
-export const APP_PHASE = "Phase 1.55";
-export const APP_VERSION = "1.55";
+export const APP_PHASE = "Phase 1.56";
+export const APP_VERSION = "1.56";
 export const SAVE_VERSION = 7;
-export const APP_BUILD_NAME = "Warfare Prototype and Secure Multiplayer Backend Foundation";
+export const APP_BUILD_NAME = "Shared Alpha World Map and Online Troop Roster";
 export const APP_BUILD_LABEL = `${APP_PHASE} • ${APP_BUILD_NAME}`;
-export const APP_FULL_PHASE_LABEL = "Shadow Syndicate Phase 1.55 — Real Page Navigation, Button Routing Fixes, and No-More-Endless-Scroll Mobile Flow";
+export const APP_FULL_PHASE_LABEL = "Shadow Syndicate Phase 1.56 — Real Page Navigation, Button Routing Fixes, and No-More-Endless-Scroll Mobile Flow";
