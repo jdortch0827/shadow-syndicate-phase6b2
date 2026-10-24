@@ -5684,34 +5684,7 @@ export default function App() {
                 onCollect={collectDistrictTribute}
               />
 
-              {false && <div className="card-grid">
-                {districts.map((district) => {
-                  const control = game.territory[district.id] || 0;
-                  const tier = getControlTier(control);
-                  const tribute = getDistrictTribute(district, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
-                  const collection = getCollectionStatus(game, district.id);
 
-                  return (
-                    <Card key={district.id} title={district.name} tag={tier.label}>
-                      <Progress label="Control" value={control} max={100} />
-                      <p className="soft-text district-desc">{tier.desc}</p>
-                      <Info label="Unlock Level" value={district.level} />
-                      <Info label="Risk" value={district.risk} />
-                      <Info label="Property Income" value={`${Math.round(tier.incomeBonus * 100)}%`} />
-                      <Info label="Tribute" value={control >= 25 ? money(tribute) : "Needs 25% control"} />
-                      <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
-                      <div className="button-row compact-row">
-                        <button className="primary" onClick={() => expandDistrict(district)}>
-                          Expand
-                        </button>
-                        <button className="secondary" disabled={control < 25 || !collection.ready} onClick={() => collectDistrictTribute(district)}>
-                          Collect Tribute
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>}
             </Panel>
           )}
 
@@ -6783,7 +6756,7 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
               className={`territory-select-zone ${selected.id === district.id ? "is-selected" : ""} ${amount >= 75 ? "is-stronghold" : ""}`}
               aria-pressed={selected.id === district.id}
               onClick={() => setSelectedId(district.id)}>
-              <span className="territory-zone-eyebrow">{locked ? `LEVEL ${district.level}` : status.label}</span>
+              <span className="territory-zone-eyebrow">{locked ? `UNLOCKS AT LEVEL ${district.level}` : amount >= 100 ? "FULL CONTROL" : status.label}</span>
               <strong>{district.name}</strong>
               <span className="territory-zone-track"><i style={{width:`${Math.min(100,Math.max(0,amount))}%`}} /></span>
               <small>{amount}% influence</small>
@@ -6796,6 +6769,7 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
           <div><p className="kicker">District Operations</p><h3>{selected.name}</h3><p className="soft-text">{tier.desc}</p></div>
           <span className="territory-selected-percent">{control}%<small>CONTROL</small></span>
         </div>
+        {selectedLocked && <p className="soft-text" role="status">Reach Level {selected.level} to expand into {selected.name}. You can still inspect its district intel.</p>}
         <Progress label="Influence" value={control} max={100} />
         <div className="territory-selected-stats">
           <Info label="Unlock Level" value={selected.level} />
