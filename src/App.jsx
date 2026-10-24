@@ -45,6 +45,8 @@ import HomePage from "./pages/HomePage";
 import JobsPage from "./pages/JobsPage";
 import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
+import WarRoom from "./components/WarRoom";
+import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -5649,6 +5651,12 @@ export default function App() {
             </EmpirePage>
           )}
 
+          {tab === "warroom" && (
+            <Panel title="War Room" sub="Train troops, raid simulated enemy positions, heal wounded, and inspect battle reports.">
+              <WarRoom game={game} onTrain={(type, qty) => setGame(old => { const result = trainTroops(old, type, qty); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onRaid={(target, troops) => setGame(old => { const result = resolveRaid(old, target, troops); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onHeal={() => setGame(old => { const result = healTroops(old); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} />
+            </Panel>
+          )}
+
           {tab === "store" && (
             <StorePage>
             <Panel title="Tribute Store" sub="Mock store for testing only. Real purchases are not active.">
@@ -7073,6 +7081,7 @@ function MoreMenuPanel({ cards, onNavigate }) {
 function EmpireHubPanel({ stats = [], damagedFronts = [], shieldActive = false, onNavigate }) {
   const quickLinks = [
     ["territory", "Turf", "Take districts and build control."],
+    ["warroom", "War Room", "Train troops, raid positions, and heal wounded."],
     ["properties", "Fronts", "Buy, repair, and upgrade income fronts."],
     ["safehouse", "Safehouse", "Permanent base upgrades."],
     ["vault", "Vault", "Protect cash and launder money."],
