@@ -6740,6 +6740,10 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
   const selectedLocked = Number(game.level || 1) < Number(selected.level || 1);
   const ownedFronts = properties.filter((property) => property.district === selected.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
   const pressure = rivals.filter((rival) => rival.district === selected.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
+  const districtFronts = properties.filter((property) => property.district === selected.id);
+  const districtRivals = rivals.filter((rival) => rival.district === selected.id);
+  const districtPressure = districtRivals.length ? Math.round(pressure / districtRivals.length) : 0;
+  const nextMilestone = control < 25 ? 25 : control < 50 ? 50 : control < 75 ? 75 : control < 100 ? 100 : null;
   return (
     <section className="district-visual-overview territory-command-map">
       <div className="section-heading-row">
@@ -6774,11 +6778,15 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
         <div className="territory-selected-stats">
           <Info label="Unlock Level" value={selected.level} />
           <Info label="Risk" value={selected.risk} />
-          <Info label="Rival Heat" value={`${pressure}/100`} />
+          <Info label="Rival Heat" value={`${districtPressure}/100`} />
           <Info label="Owned Fronts" value={ownedFronts} />
           <Info label="Property Income" value={`${Math.round(tier.incomeBonus * 100)}%`} />
           <Info label="Tribute" value={control >= 25 ? money(tribute) : "Needs 25% control"} />
           <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
+        </div>
+        <div className="territory-intel-summary">
+          <div><strong>{nextMilestone === null ? "District secured" : `${nextMilestone - control}% to next milestone`}</strong><small>{nextMilestone === null ? "Full influence achieved" : `${nextMilestone}% influence target`}</small></div>
+          <div><strong>{districtFronts.length} available fronts</strong><small>{ownedFronts} owned · {districtRivals.length} rival crews</small></div>
         </div>
         <div className="button-row compact-row territory-selected-actions">
           <button className="primary" type="button" disabled={selectedLocked || control >= 100} onClick={() => onExpand(selected)}>{selectedLocked ? `Unlocks at Level ${selected.level}` : control >= 100 ? "District Fully Controlled" : `Expand ${selected.name}`}</button>
