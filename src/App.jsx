@@ -903,6 +903,12 @@ const pageCards = [
     desc: "Build muscle, buy gear, and increase your power.",
   },
   {
+    tab: "warroom",
+    title: "War Room",
+    image: "/art/pages/revenge-log.jpg",
+    desc: "Train troops, raid enemy positions, heal wounded, and review battles.",
+  },
+  {
     tab: "territory",
     title: "Take Districts",
     image: "/ui/take-districts.png",
@@ -1194,6 +1200,7 @@ const startGame = {
   energySkill: 0,
   jobsRun: 0,
   territory: defaultTerritory,
+  warfare: { troops: { runners: 0, enforcers: 0, specialists: 0 }, hospital: { runners: 0, enforcers: 0, specialists: 0 }, reports: [] },
   properties: {},
   propertyUpgrades: {},
   supplyRoutes: {},
@@ -2652,6 +2659,7 @@ function normalizeGame(game) {
     ...startGame,
     ...(game || {}),
     territory: { ...startGame.territory, ...((game || {}).territory || {}) },
+    warfare: { ...startGame.warfare, ...((game || {}).warfare || {}), troops: { ...startGame.warfare.troops, ...((game || {}).warfare?.troops || {}) }, hospital: { ...startGame.warfare.hospital, ...((game || {}).warfare?.hospital || {}) }, reports: Array.isArray((game || {}).warfare?.reports) ? (game || {}).warfare.reports.slice(0, 20) : [] },
     properties: { ...startGame.properties, ...((game || {}).properties || {}) },
     propertyUpgrades: { ...startGame.propertyUpgrades, ...((game || {}).propertyUpgrades || {}) },
     supplyRoutes: { ...startGame.supplyRoutes, ...((game || {}).supplyRoutes || {}) },
