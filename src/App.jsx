@@ -6759,11 +6759,12 @@ function RewardFeedbackPanel({ rank, recentRewards, loginReward, loginRewardClai
 
 function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate, onExpand, onCollect }) {
   const [selectedId, setSelectedId] = useState(null);
-  const selected = districts.find((district) => district.id === selectedId) || districts[0];
+  const selected = districts.find((district) => district.id === selectedId) || districts.find((district) => district.id === game.startingDistrictId) || districts[0];
   const control = Number(game.territory?.[selected.id] || 0);
   const tier = getControlTier(control);
   const tribute = getDistrictTribute(selected, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
   const collection = getCollectionStatus(game, selected.id);
+  const selectedLocked = Number(game.level || 1) < Number(selected.level || 1);
   const ownedFronts = properties.filter((property) => property.district === selected.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
   const pressure = rivals.filter((rival) => rival.district === selected.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
   return (
@@ -6806,7 +6807,7 @@ function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skill
           <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
         </div>
         <div className="button-row compact-row territory-selected-actions">
-          <button className="primary" type="button" onClick={() => onExpand(selected)}>Expand {selected.name}</button>
+          <button className="primary" type="button" disabled={selectedLocked || control >= 100} onClick={() => onExpand(selected)}>{selectedLocked ? `Unlocks at Level ${selected.level}` : control >= 100 ? "District Fully Controlled" : `Expand ${selected.name}`}</button>
           <button className="secondary" type="button" disabled={control < 25 || !collection.ready} onClick={() => onCollect(selected)}>Collect Tribute</button>
         </div>
       </div>
