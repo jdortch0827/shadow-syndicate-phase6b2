@@ -1,0 +1,15 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { TROOPS, TARGETS, trainTroops, calculateArmy, resolveRaid, healTroops } from "../src/logic/warfare.js";
+const base = () => ({ level: 3, cash: 100000, energy: 500, warfare: { troops: {}, hospital: {}, reports: [] } });
+test("troop training deducts cash and energy", () => { const r=trainTroops(base(),"runners",3);assert.equal(r.ok,true);assert.equal(r.game.cash,100000-240);assert.equal(r.game.energy,494);assert.equal(r.game.warfare.troops.runners,3); });
+test("training rejects overspend and invalid quantities", () => { assert.equal(trainTroops({...base(),cash:1},"runners",1).ok,false);for(const q of [-1,0,1.5,26])assert.equal(trainTroops(base(),"runners",q).ok,false); });
+test("level restrictions prevent advanced troops",()=>{assert.equal(trainTroops({...base(),level:1},"specialists",1).ok,false)});
+test("army calculation ignores missing counts",()=>{assert.deepEqual(calculateArmy({}),{units:0,attack:0,defense:0,health:0})});
+test("raids cannot deploy more than owned",()=>{assert.equal(resolveRaid(base(),TARGETS[0].id,{runners:2}).ok,false)});
+test("winning raid pays rewards and records wounded",()=>{const g={...base(),warfare:{troops:{specialists:25},hospital:{},reports:[]}};const r=resolveRaid(g,TARGETS[0].id,{specialists:20});assert.equal(r.ok,true);assert.equal(r.report.won,true);assert.equal(r.game.cash,g.cash+TARGETS[0].reward);assert.equal(r.game.warfare.reports.length,1);assert.ok(r.game.warfare.hospital.specialists>0);});
+test("lost raid has no payout",()=>{const g={...base(),warfare:{troops:{runners:1},hospital:{},reports:[]}};const r=resolveRaid(g,TARGETS[0].id,{runners:1});assert.equal(r.ok,true);assert.equal(r.report.won,false);assert.equal(r.game.cash,g.cash)});
+test("healing restores units and charges cash",()=>{const g={...base(),warfare:{troops:{runners:1},hospital:{runners:2},reports:[]}};const r=healTroops(g);assert.equal(r.ok,true);assert.equal(r.game.warfare.troops.runners,3);assert.equal(r.game.warfare.hospital.runners,0);assert.equal(r.game.cash,100000-2*Math.ceil(TROOPS.runners.cost/2))});
+test("healing refuses when broke",()=>{const g={...base(),cash:0,warfare:{troops:{},hospital:{runners:2}}};assert.equal(healTroops(g).ok,false)});
+test("raid charges energy and enforces cooldown",()=>{const g={...base(),warfare:{troops:{specialists:20},hospital:{},reports:[]}};const first=resolveRaid(g,TARGETS[0].id,{specialists:20});assert.equal(first.ok,true);assert.equal(first.game.energy,492);const second=resolveRaid(first.game,TARGETS[0].id,{specialists:1});assert.equal(second.ok,false);});
+test("raid requires energy",()=>{const g={...base(),energy:0,warfare:{troops:{runners:20},hospital:{},reports:[]}};assert.equal(resolveRaid(g,TARGETS[0].id,{runners:20}).ok,false)});

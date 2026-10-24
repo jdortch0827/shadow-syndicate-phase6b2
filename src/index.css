@@ -6178,3 +6178,54 @@ select {
     padding-bottom: 92px;
   }
 }
+
+/* Phase 1.53 — keep all six boss faces visible in the character selection cards.
+   Override the old 120px desktop / 92px mobile cover crop without stretching art. */
+.class-grid .class-card img {
+  height: clamp(190px, 19vw, 260px);
+  object-fit: contain;
+  object-position: center top;
+  background: #08080b;
+}
+@media (max-width: 720px) {
+  .class-grid .class-card img {
+    height: clamp(170px, 43vw, 230px);
+  }
+}
+
+
+/* Phase 1.53: compact, selectable district map and single operations panel */
+.territory-command-map{margin-top:18px}
+.territory-select-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.territory-select-zone{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;min-height:148px;gap:9px;text-align:left;padding:16px;border:1px solid rgba(193,144,71,.34);border-radius:14px;color:#f5ede1;background:linear-gradient(0deg,#08090d,rgba(18,19,23,.78)),radial-gradient(circle at 50% 0%,rgba(171,115,43,.35),transparent 75%);cursor:pointer;transition:border-color .15s,transform .15s,background .15s}
+.territory-select-zone:hover{transform:translateY(-2px);border-color:#f0b65b}
+.territory-select-zone:focus-visible{outline:2px solid #f4bf70;outline-offset:3px}
+.territory-select-zone.is-selected{border:2px solid #f5ad32;background:linear-gradient(0deg,#211408,rgba(44,29,12,.8)),radial-gradient(circle at 50% 0%,rgba(192,127,42,.4),transparent 75%);box-shadow:0 0 0 1px rgba(245,173,50,.2),0 12px 24px #0007}
+.territory-select-zone strong{font-size:clamp(15px,1.5vw,21px);overflow-wrap:anywhere;line-height:1.15}
+.territory-zone-eyebrow{color:#e6a43e;font-size:10px;letter-spacing:.13em;text-transform:uppercase;font-weight:800}
+.territory-zone-track{height:7px;width:100%;border-radius:20px;background:#323035;overflow:hidden}
+.territory-zone-track i{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#9b6014,#fcb848)}
+.territory-select-zone small{color:#d0bd9d}
+.territory-selected-panel{padding:20px;border:1px solid rgba(217,160,73,.45);border-radius:16px;background:linear-gradient(130deg,rgba(44,29,14,.65),rgba(11,12,16,.97) 55%)}
+.territory-selected-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}
+.territory-selected-heading h3{font-size:clamp(23px,2.4vw,32px);margin:4px 0}
+.territory-selected-percent{display:flex;flex-direction:column;align-items:center;font-size:28px;font-weight:900;color:#ffc36a}
+.territory-selected-percent small{font-size:10px;letter-spacing:.12em;color:#bca888}
+.territory-selected-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:15px 0}
+.territory-selected-stats>*{min-width:0}
+.territory-selected-actions{margin-top:16px}
+@media(max-width:800px){.territory-select-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.territory-select-zone{min-height:126px}}
+@media(max-width:430px){.territory-select-zone{padding:12px;min-height:112px}.territory-selected-panel{padding:14px}.territory-selected-actions{display:grid;grid-template-columns:1fr}.territory-selected-actions button{width:100%}}
+
+/* Phase 1.53 district intelligence: concise milestone and front summary */
+.territory-intel-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0 4px}
+.territory-intel-summary>div{display:grid;gap:4px;padding:12px 14px;border:1px solid rgba(217,160,73,.22);border-radius:12px;background:rgba(0,0,0,.27)}
+.territory-intel-summary strong{font-size:.95rem;color:#f8c77c}
+.territory-intel-summary small{color:#bdb4a7;line-height:1.4}
+@media(max-width:520px){.territory-intel-summary{grid-template-columns:1fr}}
+
+/* Phase 1.54 — mobile-first war room */
+.war-room{display:grid;gap:16px;max-width:100%}.war-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.war-summary>div{display:grid;gap:5px;padding:14px;border:1px solid #76522d;border-radius:12px;background:#191714}.war-summary span,.war-unit small,.war-deploy-grid small,.war-reports small{font-size:.78rem;color:#c4b7a3}.war-summary strong{font-size:1.65rem;color:#f7c579}.war-section{padding:18px;border:1px solid rgba(226,172,88,.3);border-radius:16px;background:linear-gradient(140deg,#191712,#0d0e12)}.war-section h3{margin:0 0 8px}.war-section p{color:#d5c6b3}.war-unit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.war-unit{display:grid;align-content:start;gap:10px;border:1px solid #53412b;border-radius:12px;padding:14px}.war-unit button{margin-top:auto}.war-quantity{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0;color:#f0d3a6}.war-quantity input{width:90px}.war-quantity input,.war-quantity select,.war-deploy-grid input{padding:10px;border-radius:8px;border:1px solid #765d3e;background:#111218;color:#fff;min-height:44px}.war-deploy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.war-deploy-grid label{display:grid;gap:7px}.war-deploy-grid input{width:100%;min-width:0}.war-readout{font-weight:800;color:#f2c06e!important}.war-reports{display:grid;gap:8px}.war-reports>div{display:grid;gap:4px;padding:10px;border-radius:10px;background:#101116}.war-disclaimer{font-size:.83rem;color:#d1a975}@media(max-width:700px){.war-unit-grid{grid-template-columns:1fr}.war-summary>div{padding:10px}.war-summary strong{font-size:1.2rem}.war-section{padding:12px}}
+
+/* Phase 1.56 Alpha shared world map */
+.alpha-world{margin-top:18px;padding:16px;border:1px solid #745b3b;border-radius:14px;background:#151719}.alpha-world h3{margin:0 0 8px;color:#e9c68a}.alpha-world p{color:#d1c0a4}.alpha-map-viewport{width:100%;overflow:hidden;border:1px solid #68563d;border-radius:12px;background:#121b20}.alpha-map-viewport svg{display:block;width:100%;height:auto;aspect-ratio:10/7}.alpha-map-viewport g:focus{outline:2px solid #fff}

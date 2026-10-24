@@ -8,7 +8,7 @@ export const mainNavItems = [
 
 export const moreMenuGroups = [
   { group: "Progress", tabs: ["missions", "rewards", "achievements", "daily", "campaign", "event", "skills"] },
-  { group: "Empire", tabs: ["territory", "properties", "safehouse", "vault", "contacts", "lieutenants", "market", "store"] },
+  { group: "Empire", tabs: ["territory", "warroom", "multiplayer", "properties", "safehouse", "vault", "contacts", "lieutenants", "market", "store"] },
   { group: "Fight", tabs: ["pvp", "rivals", "revenge", "contracts", "bounties", "chat"] },
   { group: "City", tabs: ["wire", "timeline", "brief", "intel", "clinic", "heat", "balance"] },
   { group: "System", tabs: ["settings", "account", "log"] },
