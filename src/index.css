@@ -6216,3 +6216,10 @@ select {
 .territory-selected-actions{margin-top:16px}
 @media(max-width:800px){.territory-select-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.territory-select-zone{min-height:126px}}
 @media(max-width:430px){.territory-select-zone{padding:12px;min-height:112px}.territory-selected-panel{padding:14px}.territory-selected-actions{display:grid;grid-template-columns:1fr}.territory-selected-actions button{width:100%}}
+
+/* Phase 1.53 district intelligence: concise milestone and front summary */
+.territory-intel-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0 4px}
+.territory-intel-summary>div{display:grid;gap:4px;padding:12px 14px;border:1px solid rgba(217,160,73,.22);border-radius:12px;background:rgba(0,0,0,.27)}
+.territory-intel-summary strong{font-size:.95rem;color:#f8c77c}
+.territory-intel-summary small{color:#bdb4a7;line-height:1.4}
+@media(max-width:520px){.territory-intel-summary{grid-template-columns:1fr}}
