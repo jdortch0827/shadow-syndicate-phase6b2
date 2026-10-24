@@ -5680,9 +5680,11 @@ export default function App() {
                 crewLoyalty={crewLoyalty}
                 skillStats={skillStats}
                 onNavigate={goToTab}
+                onExpand={expandDistrict}
+                onCollect={collectDistrictTribute}
               />
 
-              <div className="card-grid">
+              {false && <div className="card-grid">
                 {districts.map((district) => {
                   const control = game.territory[district.id] || 0;
                   const tier = getControlTier(control);
@@ -5709,7 +5711,7 @@ export default function App() {
                     </Card>
                   );
                 })}
-              </div>
+              </div>}
             </Panel>
           )}
 
@@ -6755,45 +6757,62 @@ function RewardFeedbackPanel({ rank, recentRewards, loginReward, loginRewardClai
   );
 }
 
-function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate }) {
+function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate, onExpand, onCollect }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = districts.find((district) => district.id === selectedId) || districts[0];
+  const control = Number(game.territory?.[selected.id] || 0);
+  const tier = getControlTier(control);
+  const tribute = getDistrictTribute(selected, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
+  const collection = getCollectionStatus(game, selected.id);
+  const ownedFronts = properties.filter((property) => property.district === selected.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
+  const pressure = rivals.filter((rival) => rival.district === selected.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
   return (
-    <section className="district-visual-overview">
+    <section className="district-visual-overview territory-command-map">
       <div className="section-heading-row">
-        <div>
-          <p className="kicker">City Map</p>
-          <h3>District Visual Control</h3>
-        </div>
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate("properties")}>Open Fronts</button>
+        <div><p className="kicker">City Map · Live Influence</p><h3>Choose Your District</h3></div>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("properties")}>Manage Fronts</button>
       </div>
-      <div className="district-visual-grid">
+      <div className="territory-select-grid" role="group" aria-label="Select a district to manage">
         {districts.map((district) => {
-          const control = game.territory[district.id] || 0;
-          const tier = getControlTier(control);
-          const tribute = getDistrictTribute(district, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
-          const ownedFronts = properties.filter((property) => property.district === district.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
-          const pressure = rivals.filter((rival) => rival.district === district.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
+          const amount = Number(game.territory?.[district.id] || 0);
+          const status = getControlTier(amount);
+          const locked = Number(game.level || 1) < district.level;
           return (
-            <article key={district.id} className="district-visual-card">
-              <div className="district-visual-top">
-                <strong>{district.name}</strong>
-                <span>{tier.label}</span>
-              </div>
-              <Progress label="Control" value={control} max={100} />
-              <div className="district-visual-stats">
-                <span>Tribute <strong>{control >= 25 ? money(tribute) : "Locked"}</strong></span>
-                <span>Fronts <strong>{ownedFronts}</strong></span>
-                <span>Rival Heat <strong>{pressure}/100</strong></span>
-                <span>Risk <strong>{district.risk}</strong></span>
-              </div>
-              <p className="soft-text">{control < 25 ? "Recommended: expand control until tribute unlocks." : control < 75 ? "Recommended: push toward stronghold status." : "Recommended: hold the district and collect tribute."}</p>
-            </article>
+            <button key={district.id} type="button"
+              className={`territory-select-zone ${selected.id === district.id ? "is-selected" : ""} ${amount >= 75 ? "is-stronghold" : ""}`}
+              aria-pressed={selected.id === district.id}
+              onClick={() => setSelectedId(district.id)}>
+              <span className="territory-zone-eyebrow">{locked ? `LEVEL ${district.level}` : status.label}</span>
+              <strong>{district.name}</strong>
+              <span className="territory-zone-track"><i style={{width:`${Math.min(100,Math.max(0,amount))}%`}} /></span>
+              <small>{amount}% influence</small>
+            </button>
           );
         })}
+      </div>
+      <div className="territory-selected-panel" aria-live="polite">
+        <div className="territory-selected-heading">
+          <div><p className="kicker">District Operations</p><h3>{selected.name}</h3><p className="soft-text">{tier.desc}</p></div>
+          <span className="territory-selected-percent">{control}%<small>CONTROL</small></span>
+        </div>
+        <Progress label="Influence" value={control} max={100} />
+        <div className="territory-selected-stats">
+          <Info label="Unlock Level" value={selected.level} />
+          <Info label="Risk" value={selected.risk} />
+          <Info label="Rival Heat" value={`${pressure}/100`} />
+          <Info label="Owned Fronts" value={ownedFronts} />
+          <Info label="Property Income" value={`${Math.round(tier.incomeBonus * 100)}%`} />
+          <Info label="Tribute" value={control >= 25 ? money(tribute) : "Needs 25% control"} />
+          <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
+        </div>
+        <div className="button-row compact-row territory-selected-actions">
+          <button className="primary" type="button" onClick={() => onExpand(selected)}>Expand {selected.name}</button>
+          <button className="secondary" type="button" disabled={control < 25 || !collection.ready} onClick={() => onCollect(selected)}>Collect Tribute</button>
+        </div>
       </div>
     </section>
   );
 }
-
 
 
 
