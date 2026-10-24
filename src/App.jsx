@@ -46,6 +46,7 @@ import JobsPage from "./pages/JobsPage";
 import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
+import MultiplayerLobby from "./components/MultiplayerLobby";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -901,6 +902,12 @@ const pageCards = [
     title: "Recruit Crew",
     image: "/ui/recruit-crew.png",
     desc: "Build muscle, buy gear, and increase your power.",
+  },
+  {
+    tab: "multiplayer",
+    title: "Shadow City Alpha",
+    image: "/art/pages/city-wire.jpg",
+    desc: "Sign in and join the shared online world.",
   },
   {
     tab: "warroom",
@@ -5659,6 +5666,10 @@ export default function App() {
             </EmpirePage>
           )}
 
+          {tab === "multiplayer" && (
+            <Panel title="Shadow City Alpha" sub="Real account sign-in and shared-world onboarding (early alpha)."><MultiplayerLobby /></Panel>
+          )}
+
           {tab === "warroom" && (
             <Panel title="War Room" sub="Train troops, raid simulated enemy positions, heal wounded, and inspect battle reports.">
               <WarRoom game={game} onTrain={(type, qty) => setGame(old => { const result = trainTroops(old, type, qty); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onRaid={(target, troops) => setGame(old => { const result = resolveRaid(old, target, troops); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onHeal={() => setGame(old => { const result = healTroops(old); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} />
@@ -7090,6 +7101,7 @@ function EmpireHubPanel({ stats = [], damagedFronts = [], shieldActive = false, 
   const quickLinks = [
     ["territory", "Turf", "Take districts and build control."],
     ["warroom", "War Room", "Train troops, raid positions, and heal wounded."],
+    ["multiplayer", "Shadow City Alpha", "Join the shared multiplayer test world."],
     ["properties", "Fronts", "Buy, repair, and upgrade income fronts."],
     ["safehouse", "Safehouse", "Permanent base upgrades."],
     ["vault", "Vault", "Protect cash and launder money."],
