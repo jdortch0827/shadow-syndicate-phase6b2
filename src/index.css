@@ -6178,3 +6178,17 @@ select {
     padding-bottom: 92px;
   }
 }
+
+/* Phase 1.53 — keep all six boss faces visible in the character selection cards.
+   Override the old 120px desktop / 92px mobile cover crop without stretching art. */
+.class-grid .class-card img {
+  height: clamp(190px, 19vw, 260px);
+  object-fit: contain;
+  object-position: center top;
+  background: #08080b;
+}
+@media (max-width: 720px) {
+  .class-grid .class-card img {
+    height: clamp(170px, 43vw, 230px);
+  }
+}
