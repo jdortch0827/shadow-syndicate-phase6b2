@@ -23,5 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Test warfare logic
+        run: npm test
+
       - name: Build Shadow Syndicate
         run: npm run build
