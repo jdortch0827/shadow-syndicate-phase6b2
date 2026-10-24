@@ -16,7 +16,7 @@
 2. Open Empire > War Room and More > War Room.
 3. Train one Runner: cash -80, energy -2, troops +1.
 4. Train 25 Runners; verify quantities 0, -1, 26, fractions are rejected.
-5. Verify Enforcers locked below level 2, Specialists below level 3.
+5. Verify raids deduct 8 energy and prevent a second attack on the same target for 60 seconds.\n6. Verify Enforcers locked below level 2, Specialists below level 3.
 6. Attempt a raid with more units than owned: no deduction or report.
 7. Attack Dockside Patrol with insufficient power: defeat, wounded moved to hospital.
 8. Heal wounded: correct cash deduction, wounded cleared, active troops restored.
