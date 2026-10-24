@@ -5376,62 +5376,60 @@ export default function App() {
           <ErrorBoundary>
           {tab === "command" && (
             <HomePage>
-            <Panel title="Command Center" sub="Choose your next move and keep the city moving in your direction.">
-              <NewPlayerIntroCard
-                bossName={game.bossName}
-                bossClass={bossClass}
-                district={districtName(game.startingDistrictId || "docks")}
-                firstMoves={firstMoves}
-                onNavigate={goToTab}
-              />
-
-              <RevengeAlert revenge={activeRevengeAlert} nemesisCount={activeNemesisCount} onRetaliate={retaliateAgainst} onOpen={() => goToTab("pvp")} />
-
-              <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
-
-              <HomeGuideCard
-                cash={game.cash}
-                energy={game.energy}
-                heat={heat}
-                ownedFronts={ownedPropertyCount}
-                onNavigate={goToTab}
-              />
-
-              <RecommendedNextMoveCard move={oneRecommendedMove} onNavigate={goToTab} />
-
-              {!game.hideFirstNightGuidance && (
-                <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
-              )}
-
-              <LockedContentPreview
-                game={game}
-                ownedFronts={ownedPropertyCount}
-                onNavigate={goToTab}
-              />
-
-              <section className="home-page-links">
-                <button className="home-link-card" type="button" onClick={() => goToTab("jobs")}>
-                  <span>Jobs</span>
-                  <strong>Earn Quick Cash</strong>
-                  <small>Run jobs for cash, XP, and heat.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("empire")}>
-                  <span>Empire</span>
-                  <strong>Buy First Front</strong>
-                  <small>Turn cash into income and long-term power.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("pvp")}>
-                  <span>Fight</span>
-                  <strong>{activeRevengeAlert ? "Get Revenge" : "Pick a Fight"}</strong>
-                  <small>Build respect, settle grudges, and watch your health.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("more")}>
-                  <span>More</span>
-                  <strong>View Full Stats</strong>
-                  <small>Profile, settings, save tools, and secondary systems.</small>
-                </button>
-              </section>
-
+              <section className="syndicate-dashboard" aria-label="Syndicate command center">
+                <div className="syndicate-masthead">
+                  <div>
+                    <p className="kicker">Your criminal empire · Command HQ</p>
+                    <h2>Rule the streets.</h2>
+                    <p>Every empire starts with one move. Choose yours.</p>
+                  </div>
+                  <div className="syndicate-boss">
+                    <span className="kicker">The Boss</span>
+                    <strong>{game.bossName || "Rookie"}</strong>
+                    <small>{bossClass.name} · {districtName(game.startingDistrictId || "docks")}</small>
+                  </div>
+                </div>
+                <div className="syndicate-action-grid">
+                  <button type="button" className="syndicate-action primary-action" onClick={() => goToTab("jobs")}>
+                    <span className="kicker">01 · Make money</span><strong>Run a Job</strong><small>Earn cash and experience</small><b>Enter Jobs →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("pvp")}>
+                    <span className="kicker">02 · Build reputation</span><strong>Attack a Rival</strong><small>Fight for respect and settle grudges</small><b>Enter Fight →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("empire")}>
+                    <span className="kicker">03 · Own the city</span><strong>Manage Empire</strong><small>Buy fronts and expand your turf</small><b>Enter Empire →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("crew")}>
+                    <span className="kicker">04 · Grow your power</span><strong>Recruit Crew</strong><small>Strengthen your organization</small><b>Build Crew →</b>
+                  </button>
+                </div>
+                <div className="syndicate-lower">
+                  <section className="syndicate-territory">
+                    <div className="syndicate-section-heading"><div><p className="kicker">Territory</p><h3>Your city is waiting</h3></div><button type="button" onClick={() => goToTab("empire")}>View Districts →</button></div>
+                    <div className="syndicate-districts">
+                      <div className="syndicate-district owned"><span>Starting turf</span><strong>{districtName(game.startingDistrictId || "docks")}</strong><small>Your foothold in the underworld</small></div>
+                      <div className="syndicate-district"><span>Expansion</span><strong>Claim more ground</strong><small>Grow through jobs and fronts</small></div>
+                    </div>
+                    <p className="syndicate-footnote">Territory control and rival pressure remain in the existing Empire systems. A full interactive city map is planned for a later phase.</p>
+                  </section>
+                  <section className="syndicate-brief">
+                    <p className="kicker">Street intelligence</p>
+                    <h3>Your next move</h3>
+                    <p>{oneRecommendedMove?.title || "Run your first job"}</p>
+                    <button className="primary" type="button" onClick={() => goToTab(oneRecommendedMove?.action || "jobs")}>Take Action →</button>
+                    <div className="syndicate-brief-line"><span>Cash</span><strong>${Number(game.cash || 0).toLocaleString()}</strong></div>
+                    <div className="syndicate-brief-line"><span>Crew</span><strong>{game.crew || 0}</strong></div>
+                    <div className="syndicate-brief-line"><span>Heat</span><strong>{heat}</strong></div>
+                  </section>
+                </div>
+                <details className="syndicate-secondary">
+                  <summary>Progression, unlocks & recent activity</summary>
+                  <div className="syndicate-secondary-inner">
+                    <RevengeAlert revenge={activeRevengeAlert} nemesisCount={activeNemesisCount} onRetaliate={retaliateAgainst} onOpen={() => goToTab("pvp")} />
+                    <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
+                    <HomeGuideCard cash={game.cash} energy={game.energy} heat={heat} ownedFronts={ownedPropertyCount} onNavigate={goToTab} />
+                    {!game.hideFirstNightGuidance && <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />}
+                    <LockedContentPreview game={game} ownedFronts={ownedPropertyCount} onNavigate={goToTab} />
               <section className="recent-activity-card">
                 <p className="kicker">Recent Activity</p>
                 {game.log?.length ? (
@@ -5444,7 +5442,10 @@ export default function App() {
                   <p className="soft-text">No activity yet. Run a job to start building your name.</p>
                 )}
               </section>
-            </Panel>
+
+                  </div>
+                </details>
+              </section>
             </HomePage>
           )}
 
