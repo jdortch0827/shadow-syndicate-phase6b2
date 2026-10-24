@@ -5406,11 +5406,35 @@ export default function App() {
                 <div className="syndicate-lower">
                   <section className="syndicate-territory">
                     <div className="syndicate-section-heading"><div><p className="kicker">Territory</p><h3>Your city is waiting</h3></div><button type="button" onClick={() => goToTab("empire")}>View Districts →</button></div>
-                    <div className="syndicate-districts">
-                      <div className="syndicate-district owned"><span>Starting turf</span><strong>{districtName(game.startingDistrictId || "docks")}</strong><small>Your foothold in the underworld</small></div>
-                      <div className="syndicate-district"><span>Expansion</span><strong>Claim more ground</strong><small>Grow through jobs and fronts</small></div>
+                    <div className="syndicate-city-summary">
+                      <span>City influence <strong>{cityControl}%</strong></span>
+                      <span>Strongholds <strong>{strongholdDistricts}/6</strong></span>
+                      <span>Controlled <strong>{controlledDistricts}/6</strong></span>
                     </div>
-                    <p className="syndicate-footnote">Territory control and rival pressure remain in the existing Empire systems. A full interactive city map is planned for a later phase.</p>
+                    <div className="syndicate-city-map" role="group" aria-label="District territory overview">
+                      {districts.map((district) => {
+                        const control = Math.max(0, Math.min(100, Number(game.territory?.[district.id] || 0)));
+                        const locked = Number(game.level || 1) < district.level;
+                        return (
+                          <button
+                            key={district.id}
+                            type="button"
+                            className={`syndicate-map-zone syndicate-zone-${district.id} ${control >= 100 ? "controlled" : control >= 75 ? "stronghold" : control > 0 ? "contested" : "unclaimed"}`}
+                            onClick={() => goToTab("territory")}
+                            aria-label={`${district.name}: ${control}% control. ${locked ? `Unlocks at level ${district.level}.` : "Open district control."}`}
+                          >
+                            <span className="syndicate-map-zone-status">{locked ? `LVL ${district.level}` : control >= 100 ? "CONTROLLED" : control >= 75 ? "STRONGHOLD" : control > 0 ? "INFLUENCE" : "UNCLAIMED"}</span>
+                            <strong>{district.name}</strong>
+                            <span className="syndicate-zone-meter"><i style={{ width: `${control}%` }} /></span>
+                            <small>{control}% control</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="syndicate-map-footer">
+                      <span>Next target: <strong>{nextTurfTarget.name}</strong></span>
+                      <button type="button" onClick={() => goToTab("territory")}>Take Territory →</button>
+                    </div>
                   </section>
                   <section className="syndicate-brief">
                     <p className="kicker">Street intelligence</p>
