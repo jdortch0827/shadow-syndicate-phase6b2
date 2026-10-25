@@ -7,6 +7,10 @@ on:
     branches:
       - phase-1-53-cinematic-test
 
+concurrency:
+  group: shadow-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
