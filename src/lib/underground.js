@@ -25,3 +25,5 @@ export async function loadMyPlayer(token){
  const rows=await api(token,"ss_players?user_id=eq."+encodeURIComponent(uid)+"&select=user_id,handle&limit=1");
  return rows?.[0]||null;
 }
+
+export const loadFightReports=token=>api(token,"ss_battle_reports?target=eq.mob-pvp&select=id,attacker_id,defender_id,won,attack,defense,reward,created_at&order=created_at.desc&limit=30");
