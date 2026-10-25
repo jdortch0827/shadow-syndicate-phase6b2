@@ -3178,12 +3178,12 @@ export default function App() {
     if(!cleanEmail.includes("@"))return "Enter your email address.";
 
     const linked=Object.entries(users).find(([,user])=>user.email?.toLowerCase()===cleanEmail);
-    if(linked&&!passwordMatches(linked[1],password))return "Incorrect password.";
+
 
     const legacy=linked||null;
 
     let token;
-    try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy)});}
+    try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy&&legacy[1]?.password&&passwordMatches(legacy[1],password))});}
     catch(error){return "Online sign-in: "+error.message;}
     if(!token)return "Unable to verify your online session.";
     const identity=shadowUserFromToken(token);
@@ -6351,12 +6351,6 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             {mode === "reset" && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" /></label>}
 
             {mode !== "reset" && <label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>}
-            {mode === "create" && (
-              <label>
-                Display Name
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="what people see" />
-              </label>
-            )}
 
             {mode !== "reset" && (
               <PasswordField label="Password" value={password} onChange={setPassword} autoComplete={mode === "create" ? "new-password" : "current-password"} />
@@ -6398,10 +6392,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             </button>
           </div>
 
-          <div className="auth-admin-note">
-            <strong>Prototype admin login:</strong> admin / admin123. Admin recovery PIN: 0000. Change it after you sign in.<br />
-            <strong>Build check:</strong> You should see {APP_PHASE} on this screen. If not, the wrong folder is running.
-          </div>
+
         </section>
       </div>
     </div>
