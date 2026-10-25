@@ -6261,6 +6261,8 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
   const [mode, setMode] = useState("signin");
   const [message, setMessage] = useState("");
   const [username, setUsername] = useState("");
+  const [email,setEmail]=useState("");
+  const [submitting,setSubmitting]=useState(false);
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -6275,17 +6277,17 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
       ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
       : "Use your recovery PIN to reset your own password.";
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     setMessage("");
-
-    const result = mode === "signin"
-      ? onSignIn(username, password)
-      : mode === "create"
-        ? onCreateAccount({ username, displayName, password, confirmPassword, pin })
-        : onResetPassword({ username, pin, newPassword, confirmPassword: confirmNewPassword });
-
-    if (result) setMessage(result);
+    setSubmitting(true);
+    try {
+      const result=mode==="signin" ? await onSignIn(username,password,email) :
+        mode==="create" ? await onCreateAccount({username,email,displayName,password,confirmPassword,pin}) :
+        await onResetPassword({username,pin,newPassword,confirmPassword:confirmNewPassword});
+      if(result)setMessage(result);
+    }catch(error){setMessage(error.message||"Unable to sign in");}
+    finally{setSubmitting(false)}
   }
 
   const featureCallouts = [
