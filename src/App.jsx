@@ -47,7 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
-import {clearShadowSession} from "./lib/shadowAuth";
+import {clearShadowSession,signInShadowAccount,registerShadowAccount,saveShadowSession,shadowUserFromToken,requestShadowPasswordReset} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -60,8 +60,6 @@ const INSTALL_PROMPT_DISMISSED_KEY = "shadow_syndicate_install_prompt_dismissed_
 const INSTALL_PROMPT_ACCEPTED_KEY = "shadow_syndicate_install_prompt_accepted_v1";
 const SETTINGS_KEY = "shadow_syndicate_settings_v1";
 const ADMIN_USERNAME = "admin";
-const ADMIN_DEFAULT_PASSWORD = "admin123";
-const ADMIN_DEFAULT_PIN = "0000";
 const bossClasses = [
   {
     id: "boss",
@@ -1560,24 +1558,12 @@ function createAuthUser({ username, password, pin, displayName, role = "player" 
 }
 
 function loadAuthUsers() {
-  const seededAdmin = createAuthUser({
-    username: ADMIN_USERNAME,
-    password: ADMIN_DEFAULT_PASSWORD,
-    pin: ADMIN_DEFAULT_PIN,
-    displayName: "Admin",
-    role: "admin",
-  });
-
+  // Existing local accounts are retained. Never create an unsecured global admin account.
   try {
-    const saved = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
-    const users = saved && typeof saved === "object" ? saved : {};
-    if (!users[ADMIN_USERNAME]) users[ADMIN_USERNAME] = seededAdmin;
-    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-    return users;
+    const saved=JSON.parse(localStorage.getItem(AUTH_USERS_KEY)||"{}");
+    return saved&&typeof saved==="object"&&!Array.isArray(saved)?saved:{};
   } catch {
-    const users = { [ADMIN_USERNAME]: seededAdmin };
-    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-    return users;
+    return {};
   }
 }
 
@@ -3043,7 +3029,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.username) return;
     localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
-    localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    // Keep per-player saves separate. Never overwrite the old shared legacy backup.
   }, [game, session]);
 
   useEffect(() => {
@@ -3108,7 +3094,6 @@ export default function App() {
       if (session?.username) {
         localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
       }
-      localStorage.setItem(SAVE_KEY, JSON.stringify(game));
       localStorage.setItem("shadow_syndicate_last_seen_app_version", APP_VERSION);
     } catch {
       // Do not block the update notice if localStorage is temporarily unavailable.
@@ -3170,68 +3155,92 @@ export default function App() {
     setSetupError("");
   }
 
-  function signIn(username, password) {
-    const cleanUsername = normalizeUsername(username);
-    const user = users[cleanUsername];
+  async function signIn(username, password) {
+    const identifier=normalizeUsername(username);
+    if(!identifier||!password)return "Enter your email or previous username and password.";
 
-    if (!user || !passwordMatches(user, password)) {
-      return "That username or password is not right.";
+    // New online accounts follow the same Supabase identity used on the previous preview.
+    if(identifier.includes("@")){
+      let signed;
+      try { signed=await signInShadowAccount(identifier,password); }
+      catch(error) { return "Online sign-in failed: "+(error?.message||"Please check your email and password."); }
+      const identity=shadowUserFromToken(signed?.access_token);
+      if(!identity?.id)return "Could not confirm your online identity. Please try again.";
+      const matching=Object.entries(users).find(([name,item])=>
+        item?.onlineUserId===identity.id || (item?.email===identifier&&item?.role!=="admin"));
+      const cleanUsername=normalizeUsername(matching?.[0]||("player_"+identity.id.slice(0,12)));
+      const existing=matching?.[1];
+      const onlineUser=existing || {
+        username:cleanUsername,
+        displayName:identity.username||cleanUsername,
+        role:"player", createdAt:Date.now()
+      };
+      const nextUsers={
+        ...users,
+        [cleanUsername]:{...onlineUser,username:cleanUsername,email:identifier,onlineUserId:identity.id,lastLoginAt:Date.now()}
+      };
+      // No browser-only password is created or copied for an online identity.
+      saveShadowSession(signed);
+      refreshUsers(nextUsers);
+      const nextSession={username:cleanUsername,signedInAt:Date.now()};
+      localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
+      setSession(nextSession);
+      const loadedGame=loadGameForUser(cleanUsername);
+      setGame(loadedGame);
+      syncSetupState(loadedGame);
+      setTab("command");
+      return "";
     }
 
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: {
-        ...user,
-        lastLoginAt: Date.now(),
-      },
-    };
-
+    // Legacy usernames still open the original save on the browser where it exists.
+    const user=users[identifier];
+    if(!user)return "No local account with that username on this website. If you signed in by email on the preview, use your email here.";
+    if(user.onlineUserId)return "This player uses an online account. Sign in with the email address instead.";
+    if(!passwordMatches(user,password))return "That username or password is not right.";
+    const nextUsers={...users,[identifier]:{...user,lastLoginAt:Date.now()}};
     refreshUsers(nextUsers);
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession={username:identifier,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const loadedGame = loadGameForUser(cleanUsername);
+    const loadedGame=loadGameForUser(identifier);
     setGame(loadedGame);
     syncSetupState(loadedGame);
-    setTab(user.mustResetPassword ? "account" : "command");
-    return user.mustResetPassword ? "Temporary password accepted. Please change your password on the Account screen." : "";
+    setTab(user.mustResetPassword?"account":"command");
+    return user.mustResetPassword?"Temporary password accepted. Change it on the Account screen.":"";
   }
 
-  function createPlayerAccount({ username, displayName, password, confirmPassword, pin }) {
-    const cleanUsername = normalizeUsername(username);
-
-    if (cleanUsername.length < 3) return "Username needs at least 3 letters or numbers.";
-    if (users[cleanUsername]) return "That username already exists.";
-    if (String(password || "").length < 4) return "Password needs at least 4 characters for this prototype.";
-    if (password !== confirmPassword) return "The two passwords do not match.";
-    if (String(pin || "").trim().length < 4) return "Use at least a 4-digit recovery PIN.";
-
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: createAuthUser({
-        username: cleanUsername,
-        displayName: displayName || cleanUsername,
-        password,
-        pin,
-        role: "player",
-      }),
-    };
-
-    refreshUsers(nextUsers);
-
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+  async function createPlayerAccount({username,password,confirmPassword}) {
+    const email=String(username||"").trim().toLowerCase();
+    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return "Enter a valid email address.";
+    if(String(password||"").length<8)return "Use at least 8 characters for your online password.";
+    if(password!==confirmPassword)return "Your passwords don't match.";
+    let signed;
+    try {signed=await registerShadowAccount(email,password);}
+    catch(error){return "Registration failed: "+(error?.message||"Please try again.");}
+    if(!signed?.access_token)return "Check your inbox for a verification email, then sign in. Do not create a second account.";
+    const identity=shadowUserFromToken(signed.access_token);
+    if(!identity?.id)return "Account created. Please sign in to finish.";
+    saveShadowSession(signed);
+    const cleanUsername=normalizeUsername("player_"+identity.id.slice(0,12));
+    refreshUsers({...users,[cleanUsername]:{
+      username:cleanUsername,displayName:identity.username||cleanUsername,role:"player",
+      email,onlineUserId:identity.id,createdAt:Date.now(),lastLoginAt:Date.now()
+    }});
+    const nextSession={username:cleanUsername,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const freshGame = normalizeGame(startGame);
-    setGame(freshGame);
-    syncSetupState(freshGame);
+    const loadedGame=loadGameForUser(cleanUsername);
+    setGame(loadedGame);
+    syncSetupState(loadedGame);
     setTab("command");
     return "";
   }
 
-  function resetOwnPassword({ username, pin, newPassword, confirmPassword }) {
+  async function resetOwnPassword({ username, pin, newPassword, confirmPassword }) {
+    if(String(username||"").includes("@")){
+      try {await requestShadowPasswordReset(username);return "If that email is registered, a password-reset message has been sent. Check your inbox."}
+      catch(error){return "Unable to request a reset: "+(error?.message||"Please try again.")}
+    }
     const cleanUsername = normalizeUsername(username);
     const user = users[cleanUsername];
 
