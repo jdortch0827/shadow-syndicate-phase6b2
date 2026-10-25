@@ -7,6 +7,9 @@ on:
     branches:
       - phase-1-53-cinematic-test
       - fix-underground-single-entry
+      - fix-real-single-auth
+      - phase-167-unified-underground
+      - fix-avatar-storage-account-nav
       - main
 
 concurrency:

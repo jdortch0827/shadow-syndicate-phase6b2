@@ -16,6 +16,6 @@ test("practice battles clearly disclose simulated opponents",()=>{
 });
 test("experimental services cannot block live multiplayer lobby",()=>{
  const lobby=read("src/components/MultiplayerLobby.jsx");
- assert.ok(lobby.includes("Promise.allSettled"));
+ assert.ok(lobby.includes("joinShadowAlpha(access,handle)"));
  assert.ok(lobby.includes("<Underground"));
 });

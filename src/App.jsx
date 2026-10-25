@@ -47,7 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
-import {clearShadowSession} from "./lib/shadowAuth";
+import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession,registerShadowAccount,saveShadowSession,shadowUserFromToken} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -2847,8 +2847,12 @@ function addXp(game, amount) {
 export default function App() {
   const [users, setUsers] = useState(loadAuthUsers);
   const [session, setSession] = useState(loadAuthSession);
+  const [onlineReady,setOnlineReady]=useState(false);
+  const [authChecking,setAuthChecking]=useState(true);
+  useEffect(()=>{let active=true;restoreShadowSession().then(token=>{if(active)setOnlineReady(Boolean(token))}).finally(()=>{if(active)setAuthChecking(false)});return()=>{active=false}},[]);
   const [game, setGame] = useState(loadGame);
   const [tab, setTab] = useState("command");
+  const [saveWarning, setSaveWarning] = useState("");
   const [bossName, setBossName] = useState(game.bossName || "Rookie");
   const [classId, setClassId] = useState(game.classId || "boss");
   const [startingDistrictId, setStartingDistrictId] = useState(game.startingDistrictId || "docks");
@@ -3042,8 +3046,14 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.username) return;
-    localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
-    localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    try {
+      // A per-account save is the authoritative local copy. Do not duplicate the entire
+      // save under the legacy key; large saves and profile images can exceed browser quota.
+      localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
+    } catch (error) {
+      console.error("Shadow Syndicate save failed:", error);
+      setSaveWarning("Browser storage is full. Your latest changes may not be saved. Export your save from Account before closing this page.");
+    }
   }, [game, session]);
 
   useEffect(() => {
@@ -3170,61 +3180,54 @@ export default function App() {
     setSetupError("");
   }
 
-  function signIn(username, password) {
-    const cleanUsername = normalizeUsername(username);
-    const user = users[cleanUsername];
+  async function signIn(email, password) {
+    const cleanEmail=String(email||"").trim().toLowerCase();
+    if(!cleanEmail.includes("@"))return "Enter your email address.";
 
-    if (!user || !passwordMatches(user, password)) {
-      return "That username or password is not right.";
-    }
+    const linked=Object.entries(users).find(([,user])=>user.email?.toLowerCase()===cleanEmail);
 
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: {
-        ...user,
-        lastLoginAt: Date.now(),
-      },
-    };
 
+    const legacy=linked||null;
+
+    let token;
+    try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy&&legacy[1]?.password&&passwordMatches(legacy[1],password))});}
+    catch(error){return "Online sign-in: "+error.message;}
+    if(!token)return "Unable to verify your online session.";
+    const identity=shadowUserFromToken(token);
+    const cleanUsername=normalizeUsername(legacy?.[0]||("player_"+String(identity?.id||"").slice(0,12)));
+    const user=users[cleanUsername]||createAuthUser({username:cleanUsername,displayName:identity?.username||cleanUsername,password,pin:"",role:"player"});
+    const nextUsers={...users,[cleanUsername]:{...user,email:cleanEmail,onlineUserId:identity?.id,lastLoginAt:Date.now()}};
     refreshUsers(nextUsers);
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession={username:cleanUsername,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const loadedGame = loadGameForUser(cleanUsername);
+    setOnlineReady(true);
+    const loadedGame=loadGameForUser(cleanUsername);
     setGame(loadedGame);
     syncSetupState(loadedGame);
-    setTab(user.mustResetPassword ? "account" : "command");
-    return user.mustResetPassword ? "Temporary password accepted. Please change your password on the Account screen." : "";
+    setTab(user.mustResetPassword?"account":"command");
+    return "";
   }
 
-  function createPlayerAccount({ username, displayName, password, confirmPassword, pin }) {
-    const cleanUsername = normalizeUsername(username);
-
-    if (cleanUsername.length < 3) return "Username needs at least 3 letters or numbers.";
-    if (users[cleanUsername]) return "That username already exists.";
-    if (String(password || "").length < 4) return "Password needs at least 4 characters for this prototype.";
-    if (password !== confirmPassword) return "The two passwords do not match.";
-    if (String(pin || "").trim().length < 4) return "Use at least a 4-digit recovery PIN.";
-
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: createAuthUser({
-        username: cleanUsername,
-        displayName: displayName || cleanUsername,
-        password,
-        pin,
-        role: "player",
-      }),
-    };
-
+  async function createPlayerAccount({email,password,confirmPassword}) {
+    const cleanEmail=String(email||"").trim().toLowerCase();
+    if(!cleanEmail.includes("@"))return "Enter a valid email address.";
+    if(String(password||"").length<6)return "Password must have at least 6 characters.";
+    if(password!==confirmPassword)return "Passwords do not match.";
+    let registered;
+    try{registered=await registerShadowAccount(cleanEmail,password);}
+    catch(error){return "Online registration: "+error.message;}
+    if(!registered?.access_token)return "Account created. Check your email to verify it, then sign in here. Your boss name is chosen inside the game.";
+    saveShadowSession(registered);
+    const identity=shadowUserFromToken(registered.access_token);
+    const cleanUsername=normalizeUsername("player_"+String(identity?.id||"").slice(0,12));
+    const nextUsers={...users,[cleanUsername]:{...createAuthUser({username:cleanUsername,displayName:"Rookie",password:"",pin:"",role:"player"}),email:cleanEmail,onlineUserId:identity?.id}};
     refreshUsers(nextUsers);
-
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession={username:cleanUsername,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const freshGame = normalizeGame(startGame);
+    setOnlineReady(true);
+    const freshGame=normalizeGame(startGame);
     setGame(freshGame);
     syncSetupState(freshGame);
     setTab("command");
@@ -3254,6 +3257,7 @@ export default function App() {
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
     clearShadowSession();
+    setOnlineReady(false);
     setSession(null);
     setTab("command");
   }
@@ -3337,12 +3341,35 @@ export default function App() {
       return;
     }
     if (file.size > 2.5 * 1024 * 1024) {
-      setSetupError("Keep the picture or GIF under 2.5 MB for local save storage.");
+      setSetupError("Choose an image smaller than 2.5 MB.");
       return;
     }
 
+    // Compress uploads before embedding them in the local save. Full-resolution base64
+    // images were filling localStorage and crashing the entire app on every state change.
     const reader = new FileReader();
-    reader.onload = () => callback(String(reader.result || ""));
+    reader.onerror = () => setSetupError("Unable to read that image.");
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => setSetupError("That image could not be opened.");
+      image.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const scale = Math.min(1, 320 / Math.max(image.naturalWidth, image.naturalHeight));
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Image processing unavailable.");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.68);
+          if (compressed.length > 110000) throw new Error("Image is too large after resizing.");
+          callback(compressed);
+        } catch (error) {
+          setSetupError(error.message || "Could not prepare your image.");
+        }
+      };
+      image.src = String(reader.result || "");
+    };
     reader.readAsDataURL(file);
   }
 
@@ -3362,11 +3389,13 @@ export default function App() {
   }
 
   function uploadGameProfileImage(file) {
-    let message = "";
+    if (!file) return "Choose a picture first.";
     readImageFile(file, (image) => {
-      message = updateGameProfileImage(image);
+      updateGameProfileImage(image);
+      setSetupError("");
+      showResult({title:"Avatar Updated",flavor:"Your boss picture has been resized and added to your profile."});
     });
-    return message;
+    return "Preparing your avatar...";
   }
 
   function startNewGame() {
@@ -5051,7 +5080,11 @@ export default function App() {
       setGame((old) => ({ ...old, pageFocusTarget: focusTarget }));
     }
     if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+      window.requestAnimationFrame(() => {
+        const targetElement = target === "account" ? document.querySelector(".focused-page-panel") : null;
+        if (targetElement) targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     }
   }
 
@@ -5187,7 +5220,9 @@ export default function App() {
     }
   }, [session?.username, game?.started]);
 
-  if (!session || !currentUser) {
+  if(authChecking)return <div className="start-page auth-page"><div className="auth-shell"><section className="panel"><h2>Connecting to Shadow Syndicate...</h2><p>Restoring your game session.</p></section></div></div>;
+
+  if (!session || !currentUser || !onlineReady) {
     return (
       <>
         <InstallPromptBanner
@@ -5403,6 +5438,7 @@ export default function App() {
         ))}
       </nav>
 
+      {saveWarning && <div role="alert" className="setup-error" style={{padding:"12px 20px",margin:"12px auto",maxWidth:1100}}>{saveWarning}</div>}
       <main className="layout">
         <section className="main-panel focused-page-panel">
           <ErrorBoundary>
@@ -6256,6 +6292,8 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
   const [mode, setMode] = useState("signin");
   const [message, setMessage] = useState("");
   const [username, setUsername] = useState("");
+  const [email,setEmail]=useState("");
+  const [submitting,setSubmitting]=useState(false);
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -6265,22 +6303,22 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
   const title = mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password";
   const helper = mode === "signin"
-    ? "Sign in before entering the city. This keeps player saves separated on this device."
+    ? "Sign in with your email and password. Your boss name and saved character stay with your account."
     : mode === "create"
-      ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
+      ? "Create an account with your email and password. Choose your boss name after entering the game."
       : "Use your recovery PIN to reset your own password.";
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     setMessage("");
-
-    const result = mode === "signin"
-      ? onSignIn(username, password)
-      : mode === "create"
-        ? onCreateAccount({ username, displayName, password, confirmPassword, pin })
-        : onResetPassword({ username, pin, newPassword, confirmPassword: confirmNewPassword });
-
-    if (result) setMessage(result);
+    setSubmitting(true);
+    try {
+      const result=mode==="signin" ? await onSignIn(email,password) :
+        mode==="create" ? await onCreateAccount({email,password,confirmPassword}) :
+        await onResetPassword({username,pin,newPassword,confirmPassword:confirmNewPassword});
+      if(result)setMessage(result);
+    }catch(error){setMessage(error.message||"Unable to sign in");}
+    finally{setSubmitting(false)}
   }
 
   const featureCallouts = [
@@ -6347,17 +6385,9 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
           <p className="soft-text">{helper}</p>
 
           <form className="auth-form" onSubmit={submit}>
-            <label>
-              Username
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" />
-            </label>
+            {mode === "reset" && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" /></label>}
 
-            {mode === "create" && (
-              <label>
-                Display Name
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="what people see" />
-              </label>
-            )}
+            {mode !== "reset" && <label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>}
 
             {mode !== "reset" && (
               <PasswordField label="Password" value={password} onChange={setPassword} autoComplete={mode === "create" ? "new-password" : "current-password"} />
@@ -6366,10 +6396,6 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             {mode === "create" && (
               <>
                 <PasswordField label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} placeholder="type it again" autoComplete="new-password" />
-                <label>
-                  Recovery PIN
-                  <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4 digits you can remember" inputMode="numeric" />
-                </label>
               </>
             )}
 
@@ -6386,8 +6412,8 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
             {message && <p className={message.includes("reset") || message.includes("updated") ? "setup-success" : "setup-error"}>{message}</p>}
 
-            <button className="primary big" type="submit">
-              {mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password"}
+            <button className="primary big" type="submit" disabled={submitting}>
+              {submitting ? "Connecting..." : mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password"}
             </button>
           </form>
 
@@ -6403,10 +6429,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             </button>
           </div>
 
-          <div className="auth-admin-note">
-            <strong>Prototype admin login:</strong> admin / admin123. Admin recovery PIN: 0000. Change it after you sign in.<br />
-            <strong>Build check:</strong> You should see {APP_PHASE} on this screen. If not, the wrong folder is running.
-          </div>
+
         </section>
       </div>
     </div>
@@ -7318,7 +7341,7 @@ function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onCh
       <div className="account-grid">
         <section className="account-box">
           <h3>Profile Picture / GIF</h3>
-          <p className="soft-text">Upload a picture, animated GIF, or paste an image/GIF URL.</p>
+          <p className="soft-text">Upload a picture (resized automatically to save space), or paste an image/GIF URL. Uploaded GIFs use a still frame.</p>
           <input className="file-input full" type="file" accept="image/*,.gif" onChange={(e) => showMessage(onImageFile(e.target.files?.[0]))} />
           <label>
             Image or GIF URL

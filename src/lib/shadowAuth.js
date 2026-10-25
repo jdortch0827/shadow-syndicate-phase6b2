@@ -9,7 +9,7 @@ async function request(path, payload, accessToken) {
  if(!response.ok) throw new Error(data.msg||data.message||data.error_description||data.error||"Request failed");
  return data;
 }
-export const registerShadowAccount=(email,password)=>request("/auth/v1/signup",{email,password});
+export const registerShadowAccount=(email,password,username)=>{const redirect=typeof window!=="undefined"?window.location.origin+"/":"";return request("/auth/v1/signup"+(redirect?"?redirect_to="+encodeURIComponent(redirect):""),{email,password,data:username?{username}:{}});};
 export const signInShadowAccount=(email,password)=>request("/auth/v1/token?grant_type=password",{email,password});
 export const joinShadowAlpha=(accessToken,handle)=>request("/rest/v1/rpc/ss_join_alpha",{p_handle:handle},accessToken);
 
@@ -28,4 +28,12 @@ export async function restoreShadowSession(){
   saveShadowSession(renewed);
   return renewed.access_token;
  }catch{clearShadowSession();return null}
+}
+
+export function shadowUserFromToken(accessToken){try{const payload=JSON.parse(atob(accessToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));return {id:payload.sub,email:payload.email,username:payload.user_metadata?.username||""}}catch{return null}}
+export async function ensureShadowHomeSession({email,password,username,create=false,migrate=false}){
+ const existing=await restoreShadowSession();if(existing)return existing;
+ if(!email||!password)throw new Error("Enter your email and password on the home login to enable online play.");
+ if(create){const registered=await registerShadowAccount(email,password,username);if(registered.access_token){saveShadowSession(registered);return registered.access_token}}
+ let signed;try{signed=await signInShadowAccount(email,password)}catch(error){if(!migrate)throw error;const registered=await registerShadowAccount(email,password,username);if(!registered.access_token)throw new Error("Check your email to verify the online account, then sign in again on the home page.");signed=registered;}saveShadowSession(signed);return signed.access_token;
 }

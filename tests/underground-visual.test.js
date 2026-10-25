@@ -8,9 +8,9 @@ test("mobster-first experience includes fight list, grudge book, and forums",()=
  for(const word of ["WHO WANTS PROBLEMS?","THE GRUDGE BOOK","THE UNDERGROUND","ATTACK THIS MOB","START A DISCUSSION"])assert.ok(component.includes(word));
 });
 test("legacy map and army systems are secondary",()=>{
- assert.ok(lobby.includes("Legacy Alpha Map (experimental)"));
- assert.ok(lobby.includes("Experimental Army Systems"));
- assert.ok(lobby.indexOf("<Underground")<lobby.indexOf("<AlphaWorldMap"));
+ assert.ok(!lobby.includes("Legacy Alpha Map (experimental)"));
+ assert.ok(!lobby.includes("Experimental Army Systems"));
+ assert.ok(lobby.includes("<Underground token={token} world={world}/>"));
 });
 test("responsive mobster UI has mobile and reduced motion support",()=>{
  assert.ok(css.includes(".ug-rival-card"));
