@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - phase-1-53-cinematic-test
+      - fix-underground-single-entry
+      - main
 
 concurrency:
   group: shadow-build-${{ github.ref }}
