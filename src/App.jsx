@@ -2852,6 +2852,7 @@ export default function App() {
   useEffect(()=>{let active=true;restoreShadowSession().then(token=>{if(active)setOnlineReady(Boolean(token))}).finally(()=>{if(active)setAuthChecking(false)});return()=>{active=false}},[]);
   const [game, setGame] = useState(loadGame);
   const [tab, setTab] = useState("command");
+  const [saveWarning, setSaveWarning] = useState("");
   const [bossName, setBossName] = useState(game.bossName || "Rookie");
   const [classId, setClassId] = useState(game.classId || "boss");
   const [startingDistrictId, setStartingDistrictId] = useState(game.startingDistrictId || "docks");
@@ -3045,8 +3046,14 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.username) return;
-    localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
-    localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    try {
+      // A per-account save is the authoritative local copy. Do not duplicate the entire
+      // save under the legacy key; large saves and profile images can exceed browser quota.
+      localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
+    } catch (error) {
+      console.error("Shadow Syndicate save failed:", error);
+      setSaveWarning("Browser storage is full. Your latest changes may not be saved. Export your save from Account before closing this page.");
+    }
   }, [game, session]);
 
   useEffect(() => {
@@ -3334,12 +3341,35 @@ export default function App() {
       return;
     }
     if (file.size > 2.5 * 1024 * 1024) {
-      setSetupError("Keep the picture or GIF under 2.5 MB for local save storage.");
+      setSetupError("Choose an image smaller than 2.5 MB.");
       return;
     }
 
+    // Compress uploads before embedding them in the local save. Full-resolution base64
+    // images were filling localStorage and crashing the entire app on every state change.
     const reader = new FileReader();
-    reader.onload = () => callback(String(reader.result || ""));
+    reader.onerror = () => setSetupError("Unable to read that image.");
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => setSetupError("That image could not be opened.");
+      image.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const scale = Math.min(1, 320 / Math.max(image.naturalWidth, image.naturalHeight));
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Image processing unavailable.");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.68);
+          if (compressed.length > 110000) throw new Error("Image is too large after resizing.");
+          callback(compressed);
+        } catch (error) {
+          setSetupError(error.message || "Could not prepare your image.");
+        }
+      };
+      image.src = String(reader.result || "");
+    };
     reader.readAsDataURL(file);
   }
 
@@ -3359,11 +3389,13 @@ export default function App() {
   }
 
   function uploadGameProfileImage(file) {
-    let message = "";
+    if (!file) return "Choose a picture first.";
     readImageFile(file, (image) => {
-      message = updateGameProfileImage(image);
+      updateGameProfileImage(image);
+      setSetupError("");
+      showResult({title:"Avatar Updated",flavor:"Your boss picture has been resized and added to your profile."});
     });
-    return message;
+    return "Preparing your avatar...";
   }
 
   function startNewGame() {
@@ -5048,7 +5080,11 @@ export default function App() {
       setGame((old) => ({ ...old, pageFocusTarget: focusTarget }));
     }
     if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+      window.requestAnimationFrame(() => {
+        const targetElement = target === "account" ? document.querySelector(".focused-page-panel") : null;
+        if (targetElement) targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     }
   }
 
@@ -5402,6 +5438,7 @@ export default function App() {
         ))}
       </nav>
 
+      {saveWarning && <div role="alert" className="setup-error" style={{padding:"12px 20px",margin:"12px auto",maxWidth:1100}}>{saveWarning}</div>}
       <main className="layout">
         <section className="main-panel focused-page-panel">
           <ErrorBoundary>
@@ -7304,7 +7341,7 @@ function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onCh
       <div className="account-grid">
         <section className="account-box">
           <h3>Profile Picture / GIF</h3>
-          <p className="soft-text">Upload a picture, animated GIF, or paste an image/GIF URL.</p>
+          <p className="soft-text">Upload a picture (resized automatically to save space), or paste an image/GIF URL. Uploaded GIFs use a still frame.</p>
           <input className="file-input full" type="file" accept="image/*,.gif" onChange={(e) => showMessage(onImageFile(e.target.files?.[0]))} />
           <label>
             Image or GIF URL
