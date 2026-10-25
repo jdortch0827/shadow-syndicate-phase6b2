@@ -3202,39 +3202,25 @@ export default function App() {
     return "";
   }
 
-  async function createPlayerAccount({ username, email, displayName, password, confirmPassword, pin }) {
-    const cleanUsername = normalizeUsername(username);
-
-    if (cleanUsername.length < 3) return "Username needs at least 3 letters or numbers.";
-    if (users[cleanUsername]) return "That username already exists.";
-    if (String(password || "").length < 6) return "Password needs at least 6 characters.";
-    if (password !== confirmPassword) return "The two passwords do not match.";
-    if (String(pin || "").trim().length < 4) return "Use at least a 4-digit recovery PIN.";
-
-    if(!email||!email.includes("@"))return "Enter an email address.";
+  async function createPlayerAccount({email,password,confirmPassword}) {
+    const cleanEmail=String(email||"").trim().toLowerCase();
+    if(!cleanEmail.includes("@"))return "Enter a valid email address.";
+    if(String(password||"").length<6)return "Password must have at least 6 characters.";
+    if(password!==confirmPassword)return "Passwords do not match.";
     let registered;
-    try{registered=await registerShadowAccount(email,password,cleanUsername)}
-    catch(error){return "Online registration: "+error.message}
-    if(registered?.access_token){saveShadowSession(registered);setOnlineReady(true)}
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: {...createAuthUser({
-        username: cleanUsername,
-        displayName: displayName || cleanUsername,
-        password,
-        pin,
-        role: "player",
-      }),email:String(email).trim().toLowerCase()},
-    };
-
+    try{registered=await registerShadowAccount(cleanEmail,password);}
+    catch(error){return "Online registration: "+error.message;}
+    if(!registered?.access_token)return "Account created. Check your email to verify it, then sign in here. Your boss name is chosen inside the game.";
+    saveShadowSession(registered);
+    const identity=shadowUserFromToken(registered.access_token);
+    const cleanUsername=normalizeUsername("player_"+String(identity?.id||"").slice(0,12));
+    const nextUsers={...users,[cleanUsername]:{...createAuthUser({username:cleanUsername,displayName:"Rookie",password:"",pin:"",role:"player"}),email:cleanEmail,onlineUserId:identity?.id}};
     refreshUsers(nextUsers);
-
-    if(!registered?.access_token)return "Check your email for a verification link, then sign in on the home page.";
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession={username:cleanUsername,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const freshGame = normalizeGame(startGame);
+    setOnlineReady(true);
+    const freshGame=normalizeGame(startGame);
     setGame(freshGame);
     syncSetupState(freshGame);
     setTab("command");
@@ -6282,7 +6268,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
   const helper = mode === "signin"
     ? "Sign in with your email and password. Your boss name and saved character stay with your account."
     : mode === "create"
-      ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
+      ? "Create an account with your email and password. Choose your boss name after entering the game."
       : "Use your recovery PIN to reset your own password.";
 
   async function submit(event) {
@@ -6291,7 +6277,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
     setSubmitting(true);
     try {
       const result=mode==="signin" ? await onSignIn(email,password) :
-        mode==="create" ? await onCreateAccount({username,email,displayName,password,confirmPassword,pin}) :
+        mode==="create" ? await onCreateAccount({email,password,confirmPassword}) :
         await onResetPassword({username,pin,newPassword,confirmPassword:confirmNewPassword});
       if(result)setMessage(result);
     }catch(error){setMessage(error.message||"Unable to sign in");}
@@ -6362,7 +6348,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
           <p className="soft-text">{helper}</p>
 
           <form className="auth-form" onSubmit={submit}>
-            {mode !== "signin" && <label>{mode==="create"?"Boss Name":"Username"}<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" /></label>}
+            {mode === "reset" && <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" /></label>}
 
             {mode !== "reset" && <label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>}
             {mode === "create" && (
