@@ -16,3 +16,5 @@ export const readAlphaTroops = (token, worldId) =>
 
 export const readAlphaBattles = (token, worldId) =>
   read("/rest/v1/ss_battle_reports?world_id=eq." + encodeURIComponent(worldId) + "&select=id,target,won,attack,defense,reward,created_at&order=created_at.desc&limit=20", token);
+
+export const readCombatTargets = (token) => read("/rest/v1/ss_combat_targets?select=id,name,defense,reward,minimum_level&order=defense.asc", token);
