@@ -3081,7 +3081,7 @@ export default function App() {
     fetch(`/version.json?ts=${Date.now()}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((remote) => {
-        if (remote?.version && remote.version !== APP_VERSION) {
+        if (remote?.version && isNewerAppVersion(remote.version, APP_VERSION)) {
           setUpdateReady(true);
         }
       })
@@ -3089,6 +3089,18 @@ export default function App() {
 
     return () => window.removeEventListener("shadow-syndicate-update-ready", onUpdateReady);
   }, []);
+
+  function isNewerAppVersion(remoteVersion, currentVersion) {
+    const parts = (value) => String(value).match(/\\d+/g)?.map(Number) || [];
+    const remote = parts(remoteVersion);
+    const current = parts(currentVersion);
+    if (!remote.length || !current.length) return false;
+    for (let i = 0; i < Math.max(remote.length, current.length); i += 1) {
+      const delta = (remote[i] || 0) - (current[i] || 0);
+      if (delta !== 0) return delta > 0;
+    }
+    return false;
+  }
 
   function applyAvailableUpdate() {
     try {
@@ -3102,6 +3114,7 @@ export default function App() {
     }
 
     const waitingWorker = updateRegistration?.waiting || window.__SHADOW_SYNDICATE_SW_REGISTRATION__?.waiting;
+    setUpdateReady(false);
     if (waitingWorker) {
       waitingWorker.postMessage({ type: "SKIP_WAITING" });
       return;
