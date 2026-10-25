@@ -6334,7 +6334,7 @@ function PasswordField({ label, value, onChange, placeholder = "Password", autoC
   );
 }
 
-function SaveTransferControls({onRestore}) {
+function SaveTransferControls({onRestore,game=null}) {
   const [status,setStatus]=useState("");
   const [busy,setBusy]=useState(false);
   async function handleFile(event){
@@ -6352,6 +6352,22 @@ function SaveTransferControls({onRestore}) {
       setBusy(false);
     }
   }
+  function downloadCurrentSave(){
+    if(!game?.started){setStatus("There is no started boss to back up yet.");return;}
+    try{
+      const transfer={format:"shadow-syndicate-save-transfer",version:1,exportedAt:new Date().toISOString(),game};
+      const blob=new Blob([JSON.stringify(transfer)],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;
+      link.download="shadow-syndicate-"+String(game.bossName||"boss").replace(/[^a-z0-9_-]/gi,"-").slice(0,26)+"-backup.json";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),5000);
+      setStatus("Current boss backup downloaded. Store the file somewhere safe.");
+    }catch(error){setStatus("Unable to download backup: "+(error?.message||"unknown error"));}
+  }
   return <section className="panel save-transfer-panel">
     <p className="kicker">Existing boss? Do not start over.</p>
     <h3>Restore Previous Save</h3>
@@ -6359,6 +6375,7 @@ function SaveTransferControls({onRestore}) {
     <p><a href="https://deploy-preview-3--shadowsyndicate.netlify.app/recover-save.html" target="_blank" rel="noopener noreferrer">Step 1: Get your backup from the old preview</a></p>
     <label htmlFor="shadow-restore-file">Step 2: Choose downloaded save file</label>
     <input id="shadow-restore-file" type="file" accept="application/json,.json" disabled={busy} onChange={handleFile} />
+    {game?.started&&<div className="button-row"><button type="button" className="secondary" onClick={downloadCurrentSave}>Download Current Boss Backup</button></div>}
     {status&&<p className="soft-text" role="status">{status}</p>}
     <small>Nothing is deleted just by selecting this option. Restoring over a started character asks for confirmation and backs up the existing local save.</small>
   </section>;
@@ -7418,7 +7435,7 @@ function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onCh
       {message && <p className={message.includes("updated") || message.includes("reset") || message.includes("created") ? "setup-success" : "setup-error"}>{message}</p>}
 
       <div className="account-grid">
-        <SaveTransferControls onRestore={onRestoreSave} />
+        <SaveTransferControls onRestore={onRestoreSave} game={game} />
         <section className="account-box">
           <h3>Profile Picture / GIF</h3>
           <p className="soft-text">Upload a picture, animated GIF, or paste an image/GIF URL.</p>
