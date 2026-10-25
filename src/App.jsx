@@ -3091,7 +3091,7 @@ export default function App() {
   }, []);
 
   function isNewerAppVersion(remoteVersion, currentVersion) {
-    const parts = (value) => String(value).match(/\\d+/g)?.map(Number) || [];
+    const parts = (value) => String(value).match(/\d+/g)?.map(Number) || [];
     const remote = parts(remoteVersion);
     const current = parts(currentVersion);
     if (!remote.length || !current.length) return false;
