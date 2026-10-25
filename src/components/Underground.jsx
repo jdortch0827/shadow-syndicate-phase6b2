@@ -11,7 +11,7 @@ export default function Underground({token,world}){
  const myProfile=profiles.find(p=>p.user_id===self);
  const competitors=players.filter(p=>p.user_id!==self);
  const myRank=1+profiles.filter(p=>(p.wins||0)>(myProfile?.wins||0)).length;
- async function refresh(){const [p,m,r,t,f]=await Promise.all([loadPlayers(token),loadMobProfiles(token),loadRivals(token),loadThreads(token,world.world_id),loadFightReports(token)]);setPlayers(p);setProfiles(m);setRivals(r);setThreads(t);setReports(f)}
+ async function refresh(){const results=await Promise.allSettled([loadPlayers(token),loadMobProfiles(token),loadRivals(token),loadThreads(token,world.world_id),loadFightReports(token)]);const [p,m,r,t,f]=results.map(result=>result.status==="fulfilled"?result.value:[]);setPlayers(p);setProfiles(m);setRivals(r);setThreads(t);setReports(f);if(results.some(result=>result.status==="rejected"))setStatus("Some Underground sections could not load. Refresh to try again.")}
  useEffect(()=>{let active=true;setLoading(true);refresh().catch(e=>{if(active)setStatus(e.message)}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[token,world.world_id]);
  async function act(action){setBusy(true);setStatus("");try{const result=await action();if(result?.won!==undefined){setLastFight(result);setStatus(result.won?"You won the fight. Your name just got bigger.":"You lost the fight. Time to settle the score.");}else setStatus("Your post is live.");await refresh();if(thread)setReplies(await loadReplies(token,thread.id))}catch(e){setStatus(e.message)}finally{setBusy(false)}}
  async function openThread(t){setThread(t);setReplies([]);try{setReplies(await loadReplies(token,t.id))}catch(e){setStatus(e.message)}}
