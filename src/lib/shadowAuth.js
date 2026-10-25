@@ -29,3 +29,21 @@ export async function restoreShadowSession(){
   return renewed.access_token;
  }catch{clearShadowSession();return null}
 }
+
+/** Identity is established only by a successful server-authenticated session, not by an entered name. */
+export function shadowUserFromToken(token) {
+ try {
+  const part=String(token||"").split(".")[1];
+  if(!part)return null;
+  const padded=part.replace(/-/g,"+").replace(/_/g,"/");
+  const claims=JSON.parse(atob(padded));
+  return claims?.sub?{id:claims.sub,email:claims.email||"",username:claims.user_metadata?.username||""}:null;
+ }catch{return null}
+}
+/** Trigger a Supabase password recovery email; never reveal whether an address is registered. */
+export async function requestShadowPasswordReset(email){
+ const clean=String(email||"").trim().toLowerCase();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean))throw new Error("Enter a valid email address.");
+ await request("/auth/v1/recover",{email:clean});
+ return true;
+}
