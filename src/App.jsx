@@ -6268,7 +6268,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
   const title = mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password";
   const helper = mode === "signin"
-    ? "Sign in before entering the city. This keeps player saves separated on this device."
+    ? "Sign in here once to access the entire game, including online multiplayer. Existing players: enter your old username and password plus an email for one-time account migration."
     : mode === "create"
       ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
       : "Use your recovery PIN to reset your own password.";
