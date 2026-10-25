@@ -10,6 +10,6 @@ async function read(path, accessToken) {
   return payload;
 }
 export const readAlphaBases = (token, worldId) =>
-  read("/rest/v1/ss_world_members?world_id=eq." + encodeURIComponent(worldId) + "&select=user_id,x,y,level", token);
+  read("/rest/v1/ss_map_markers?world_id=eq." + encodeURIComponent(worldId) + "&select=user_id,x,y", token);
 export const readAlphaTroops = (token, worldId) =>
   read("/rest/v1/ss_troop_stacks?world_id=eq." + encodeURIComponent(worldId) + "&select=unit_type,available,wounded", token);
