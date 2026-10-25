@@ -6298,6 +6298,7 @@ function PasswordField({ label, value, onChange, placeholder = "Password", autoC
 function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
   const [mode, setMode] = useState("signin");
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -6308,22 +6309,28 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
   const title = mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password";
   const helper = mode === "signin"
-    ? "Sign in before entering the city. This keeps player saves separated on this device."
+    ? "Use the same email and password as your online Shadow City account. Browser-only legacy usernames still work where their save was created."
     : mode === "create"
-      ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
-      : "Use your recovery PIN to reset your own password.";
+      ? "Create one verified online account to play with other mobsters. Already played on the preview? Sign in instead."
+      : "Use your email for an online reset link, or your old username and recovery PIN for a legacy account.";
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
+    if(submitting)return;
     setMessage("");
-
-    const result = mode === "signin"
-      ? onSignIn(username, password)
-      : mode === "create"
-        ? onCreateAccount({ username, displayName, password, confirmPassword, pin })
-        : onResetPassword({ username, pin, newPassword, confirmPassword: confirmNewPassword });
-
-    if (result) setMessage(result);
+    setSubmitting(true);
+    try {
+      const result = mode === "signin"
+        ? await onSignIn(username, password)
+        : mode === "create"
+          ? await onCreateAccount({ username, displayName, password, confirmPassword, pin })
+          : await onResetPassword({ username, pin, newPassword, confirmPassword: confirmNewPassword });
+      if (result) setMessage(result);
+    } catch(error) {
+      setMessage(error?.message||"Unable to complete that action.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const featureCallouts = [
@@ -6384,23 +6391,16 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
               <p className="kicker">Player Access</p>
               <h2>{title}</h2>
             </div>
-            <span>{APP_PHASE} • {Object.keys(users || {}).length} Accounts</span>
+            <span>{APP_PHASE} • Online + Legacy</span>
           </div>
 
           <p className="soft-text">{helper}</p>
 
           <form className="auth-form" onSubmit={submit}>
             <label>
-              Username
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" />
+              {mode==="create"?"Email Address":"Email or Legacy Username"}
+              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={mode==="create"?"you@example.com":"email@example.com or old username"} autoComplete="username" inputMode="email" />
             </label>
-
-            {mode === "create" && (
-              <label>
-                Display Name
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="what people see" />
-              </label>
-            )}
 
             {mode !== "reset" && (
               <PasswordField label="Password" value={password} onChange={setPassword} autoComplete={mode === "create" ? "new-password" : "current-password"} />
@@ -6409,14 +6409,10 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             {mode === "create" && (
               <>
                 <PasswordField label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} placeholder="type it again" autoComplete="new-password" />
-                <label>
-                  Recovery PIN
-                  <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4 digits you can remember" inputMode="numeric" />
-                </label>
               </>
             )}
 
-            {mode === "reset" && (
+            {mode === "reset" && !username.includes("@") && (
               <>
                 <label>
                   Recovery PIN
@@ -6427,28 +6423,22 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
               </>
             )}
 
-            {message && <p className={message.includes("reset") || message.includes("updated") ? "setup-success" : "setup-error"}>{message}</p>}
+            {message && <p role="status" className={message.includes("reset") || message.includes("sent") || message.includes("Check your inbox") || message.includes("updated") ? "setup-success" : "setup-error"}>{message}</p>}
 
-            <button className="primary big" type="submit">
-              {mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password"}
+            <button className="primary big" type="submit" disabled={submitting}>
+              {submitting?"Connecting...":mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : username.includes("@")?"Send Reset Email":"Reset Password"}
             </button>
           </form>
 
           <div className="auth-switch-row">
-            <button type="button" className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setMessage(""); }}>
-              Sign In
-            </button>
-            <button type="button" className={mode === "create" ? "active" : ""} onClick={() => { setMode("create"); setMessage(""); }}>
-              New Player
-            </button>
-            <button type="button" className={mode === "reset" ? "active" : ""} onClick={() => { setMode("reset"); setMessage(""); }}>
-              Forgot Password
-            </button>
+            {mode!=="signin"&&<button type="button" className="secondary" onClick={()=>{setMode("signin");setMessage("");}}>Back to Sign In</button>}
+            {mode!=="create"&&<button type="button" onClick={()=>{setMode("create");setMessage("");}}>New Player</button>}
+            {mode!=="reset"&&<button type="button" onClick={()=>{setMode("reset");setMessage("");}}>Forgot Password</button>}
           </div>
 
           <div className="auth-admin-note">
-            <strong>Prototype admin login:</strong> admin / admin123. Admin recovery PIN: 0000. Change it after you sign in.<br />
-            <strong>Build check:</strong> You should see {APP_PHASE} on this screen. If not, the wrong folder is running.
+            <strong>Already had a boss on Preview #3?</strong> Sign in with that online email here. Your earlier browser-only game progress may still live at the preview address. <a href="https://deploy-preview-3--shadowsyndicate.netlify.app/recover-save.html" target="_blank" rel="noopener noreferrer">Recover your previous save</a> without deleting it.
+            <p><strong>Data safety:</strong> Do not clear browser data, uninstall the game, or create a replacement character before recovering your old save.</p>
           </div>
         </section>
       </div>
