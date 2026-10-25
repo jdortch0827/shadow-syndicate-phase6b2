@@ -4751,6 +4751,42 @@ export default function App() {
     });
   }
 
+  async function restorePreviousSave(file) {
+    if(!session?.username)return "Sign in before restoring a save.";
+    if(!file)return "Select your previous Shadow Syndicate backup.";
+    if(file.size>12*1024*1024)return "That backup is larger than 12 MB.";
+    let transfer;
+    try { transfer=JSON.parse(await file.text()); }
+    catch { return "That file is not a valid Shadow Syndicate backup."; }
+    if(transfer?.format!=="shadow-syndicate-save-transfer"||transfer?.version!==1 ||
+       !transfer?.game||typeof transfer.game!=="object"||Array.isArray(transfer.game)||
+       !transfer.game.started||typeof transfer.game.bossName!=="string"){
+      return "This is not a supported started-boss backup. No progress was changed.";
+    }
+    const incoming=normalizeGame(transfer.game);
+    if(game.started && !window.confirm(
+      "Restore "+String(incoming.bossName||"your old boss")+" over the CURRENT local save for this login? A safety copy of the current save will be kept.")){
+      return "Restore cancelled. Your current progress is unchanged.";
+    }
+    try {
+      const key=getUserSaveKey(session.username);
+      const prior=localStorage.getItem(key);
+      if(prior){
+        const safetyKey="shadow_syndicate_before_restore_"+session.username+"_"+Date.now();
+        localStorage.setItem(safetyKey,prior);
+      }
+      // Imported data is tied to this already authenticated browser account.
+      // Neither auth credentials nor online Supabase identities are imported.
+      localStorage.setItem(key,JSON.stringify(incoming));
+      setGame(incoming);
+      syncSetupState(incoming);
+      setTab("command");
+      return "Recovered "+incoming.bossName+" at Level "+String(incoming.level||1)+". Your previous character was loaded.";
+    }catch(error){
+      return "Could not restore the save on this device ("+(error?.message||"storage error")+"). No online progress was changed.";
+    }
+  }
+
   function resetGame() {
     if (!confirm("Reset this prototype save?")) return;
     localStorage.removeItem(SAVE_KEY);
@@ -5287,6 +5323,8 @@ export default function App() {
               </p>
             </div>
           </section>
+
+          <SaveTransferControls onRestore={restorePreviousSave} />
 
           <section className="panel boss-profile-panel">
             <div className="setup-heading">
@@ -6109,6 +6147,7 @@ export default function App() {
                 onImageUrl={updateGameProfileImage}
                 onLogout={signOut}
                 onResetGame={resetGame}
+                onRestoreSave={restorePreviousSave}
               />
             </Panel>
           )}
@@ -6293,6 +6332,36 @@ function PasswordField({ label, value, onChange, placeholder = "Password", autoC
       </div>
     </label>
   );
+}
+
+function SaveTransferControls({onRestore}) {
+  const [status,setStatus]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function handleFile(event){
+    const file=event.target.files?.[0];
+    event.target.value="";
+    if(!file)return;
+    setBusy(true);
+    setStatus("Checking backup...");
+    try {
+      const outcome=await onRestore(file);
+      setStatus(outcome||"Restore completed.");
+    }catch(error){
+      setStatus("Restore failed: "+(error?.message||"Please try again."));
+    }finally{
+      setBusy(false);
+    }
+  }
+  return <section className="panel save-transfer-panel">
+    <p className="kicker">Existing boss? Do not start over.</p>
+    <h3>Restore Previous Save</h3>
+    <p className="soft-text">Played on the older Preview #3 address? Download your old save there, then choose that backup below. This keeps your boss name, level, cash, and progress instead of starting from scratch.</p>
+    <p><a href="https://deploy-preview-3--shadowsyndicate.netlify.app/recover-save.html" target="_blank" rel="noopener noreferrer">Step 1: Get your backup from the old preview</a></p>
+    <label htmlFor="shadow-restore-file">Step 2: Choose downloaded save file</label>
+    <input id="shadow-restore-file" type="file" accept="application/json,.json" disabled={busy} onChange={handleFile} />
+    {status&&<p className="soft-text" role="status">{status}</p>}
+    <small>Nothing is deleted just by selecting this option. Restoring over a started character asks for confirmation and backs up the existing local save.</small>
+  </section>;
 }
 
 function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
@@ -7312,7 +7381,7 @@ function SettingsPanel({ settings, onToggle, installReady, isInstalled, buildLab
 }
 
 
-function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onChangePassword, onAdminReset, onAdminCreate, onImageFile, onImageUrl, onLogout, onResetGame }) {
+function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onChangePassword, onAdminReset, onAdminCreate, onImageFile, onImageUrl, onLogout, onResetGame, onRestoreSave }) {
   const [displayName, setDisplayName] = useState(currentUser?.displayName || "");
   const [imageUrl, setImageUrl] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -7349,6 +7418,7 @@ function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onCh
       {message && <p className={message.includes("updated") || message.includes("reset") || message.includes("created") ? "setup-success" : "setup-error"}>{message}</p>}
 
       <div className="account-grid">
+        <SaveTransferControls onRestore={onRestoreSave} />
         <section className="account-box">
           <h3>Profile Picture / GIF</h3>
           <p className="soft-text">Upload a picture, animated GIF, or paste an image/GIF URL.</p>
