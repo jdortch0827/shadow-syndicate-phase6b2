@@ -3217,13 +3217,13 @@ export default function App() {
     if(registered?.access_token){saveShadowSession(registered);setOnlineReady(true)}
     const nextUsers = {
       ...users,
-      [cleanUsername]: createAuthUser({
+      [cleanUsername]: {...createAuthUser({
         username: cleanUsername,
         displayName: displayName || cleanUsername,
         password,
         pin,
         role: "player",
-      }),
+      }),email:String(email).trim().toLowerCase()},
     };
 
     refreshUsers(nextUsers);
@@ -6279,7 +6279,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
   const title = mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password";
   const helper = mode === "signin"
-    ? "Sign in here once to access the entire game, including online multiplayer. Existing players: enter your old username and password plus an email for one-time account migration."
+    ? "Sign in with your email and password. Your boss name and saved character stay with your account."
     : mode === "create"
       ? "Create your boss profile, lock in your save, and step into the city like a future kingpin."
       : "Use your recovery PIN to reset your own password.";
@@ -6289,7 +6289,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
     setMessage("");
     setSubmitting(true);
     try {
-      const result=mode==="signin" ? await onSignIn(username,password,email) :
+      const result=mode==="signin" ? await onSignIn(email,password) :
         mode==="create" ? await onCreateAccount({username,email,displayName,password,confirmPassword,pin}) :
         await onResetPassword({username,pin,newPassword,confirmPassword:confirmNewPassword});
       if(result)setMessage(result);
