@@ -3212,6 +3212,11 @@ export default function App() {
     if (password !== confirmPassword) return "The two passwords do not match.";
     if (String(pin || "").trim().length < 4) return "Use at least a 4-digit recovery PIN.";
 
+    if(!email||!email.includes("@"))return "Enter an email address.";
+    let registered;
+    try{registered=await registerShadowAccount(email,password,cleanUsername)}
+    catch(error){return "Online registration: "+error.message}
+    if(registered?.access_token){saveShadowSession(registered);setOnlineReady(true)}
     const nextUsers = {
       ...users,
       [cleanUsername]: createAuthUser({
@@ -3225,6 +3230,7 @@ export default function App() {
 
     refreshUsers(nextUsers);
 
+    if(!registered?.access_token)return "Check your email for a verification link, then sign in on the home page.";
     const nextSession = { username: cleanUsername, signedInAt: Date.now() };
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
     setSession(nextSession);
