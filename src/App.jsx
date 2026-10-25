@@ -6359,6 +6359,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
               <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" />
             </label>
 
+            {mode !== "reset" && <label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>}
             {mode === "create" && (
               <label>
                 Display Name
@@ -6393,8 +6394,8 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
 
             {message && <p className={message.includes("reset") || message.includes("updated") ? "setup-success" : "setup-error"}>{message}</p>}
 
-            <button className="primary big" type="submit">
-              {mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password"}
+            <button className="primary big" type="submit" disabled={submitting}>
+              {submitting ? "Connecting..." : mode === "signin" ? "Sign In" : mode === "create" ? "Create Account" : "Reset Password"}
             </button>
           </form>
 
