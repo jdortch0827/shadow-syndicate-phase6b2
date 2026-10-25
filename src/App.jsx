@@ -47,7 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
-import {clearShadowSession} from "./lib/shadowAuth";
+import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -2847,6 +2847,9 @@ function addXp(game, amount) {
 export default function App() {
   const [users, setUsers] = useState(loadAuthUsers);
   const [session, setSession] = useState(loadAuthSession);
+  const [onlineReady,setOnlineReady]=useState(false);
+  const [authChecking,setAuthChecking]=useState(true);
+  useEffect(()=>{let active=true;restoreShadowSession().then(token=>{if(active)setOnlineReady(Boolean(token))}).finally(()=>{if(active)setAuthChecking(false)});return()=>{active=false}},[]);
   const [game, setGame] = useState(loadGame);
   const [tab, setTab] = useState("command");
   const [bossName, setBossName] = useState(game.bossName || "Rookie");
@@ -3170,7 +3173,7 @@ export default function App() {
     setSetupError("");
   }
 
-  function signIn(username, password) {
+  async function signIn(username, password, email) {
     const cleanUsername = normalizeUsername(username);
     const user = users[cleanUsername];
 
@@ -3198,12 +3201,12 @@ export default function App() {
     return user.mustResetPassword ? "Temporary password accepted. Please change your password on the Account screen." : "";
   }
 
-  function createPlayerAccount({ username, displayName, password, confirmPassword, pin }) {
+  async function createPlayerAccount({ username, email, displayName, password, confirmPassword, pin }) {
     const cleanUsername = normalizeUsername(username);
 
     if (cleanUsername.length < 3) return "Username needs at least 3 letters or numbers.";
     if (users[cleanUsername]) return "That username already exists.";
-    if (String(password || "").length < 4) return "Password needs at least 4 characters for this prototype.";
+    if (String(password || "").length < 6) return "Password needs at least 6 characters.";
     if (password !== confirmPassword) return "The two passwords do not match.";
     if (String(pin || "").trim().length < 4) return "Use at least a 4-digit recovery PIN.";
 
