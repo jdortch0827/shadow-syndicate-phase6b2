@@ -3265,6 +3265,7 @@ export default function App() {
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
     clearShadowSession();
+    setOnlineReady(false);
     setSession(null);
     setTab("command");
   }
@@ -5198,7 +5199,7 @@ export default function App() {
     }
   }, [session?.username, game?.started]);
 
-  if (!session || !currentUser) {
+  if (!session || !currentUser || !onlineReady) {
     return (
       <>
         <InstallPromptBanner
