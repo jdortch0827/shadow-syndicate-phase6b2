@@ -5410,7 +5410,7 @@ export default function App() {
                 <div className="syndicate-masthead">
                   <div>
                     <p className="kicker">Your criminal empire · Command HQ</p>
-                    <h2>Rule the streets.</h2>
+                    <h2>Rule the streets.</h2><div className="ug-home-promo"><div><span>LIVE PLAYER WARFARE</span><strong>THE UNDERGROUND IS OPEN.</strong><p>Real rivals. Real fight records. The kind of grudges that make a name.</p></div><button type="button" onClick={() => goToTab("multiplayer")}>ENTER MOB WARS ↗</button></div>
                     <p>Every empire starts with one move. Choose yours.</p>
                   </div>
                   <div className="syndicate-boss">
@@ -5680,7 +5680,7 @@ export default function App() {
           )}
 
           {tab === "multiplayer" && (
-            <Panel title="Shadow City Alpha" sub="Real account sign-in and shared-world onboarding (early alpha)."><MultiplayerLobby /></Panel>
+            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby /></Panel>
           )}
 
           {tab === "warroom" && (
@@ -5906,7 +5906,7 @@ export default function App() {
 
           {tab === "pvp" && (
             <FightPage>
-            <Panel title="PvP Hub" sub="Local simulated player-vs-player foundation. Find targets, start grudges, set defense, and test future multiplayer flow without a backend yet.">
+            <Panel title="Practice Fights · Offline Training" sub="Practice against fictional rivals. These battles are simulated and do not affect the online rankings or other players."><button className="ug-enter-live" type="button" onClick={() => goToTab("multiplayer")}>ENTER LIVE MOB WARS — FIGHT REAL PLAYERS ↗</button>
               <PageHelperCard title="Fight creates grudges" text="Fight uses Health, Crew, PvP Power, Respect, and Revenge. Pick targets carefully and hit back when someone takes from you." />
               <PvpHub
                 game={game}
