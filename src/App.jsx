@@ -6361,10 +6361,7 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
           <p className="soft-text">{helper}</p>
 
           <form className="auth-form" onSubmit={submit}>
-            <label>
-              Username
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" />
-            </label>
+            {mode !== "signin" && <label>{mode==="create"?"Boss Name":"Username"}<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="player name" autoComplete="username" /></label>}
 
             {mode !== "reset" && <label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>}
             {mode === "create" && (
