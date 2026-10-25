@@ -6250,3 +6250,6 @@ select {
 
 /* Keep experimental mechanics out of the main mobster experience. */
 .war-room>section>details{margin:16px 0;border:1px solid #4e4234;border-radius:10px;background:#16181c;padding:12px}.war-room>section>details>summary{color:#c9a46e;font-weight:800;cursor:pointer;padding:8px}.war-room>section>details[open]>summary{margin-bottom:12px}
+
+/* Underground entry: present the sign-in as a game screen, not an admin form. */
+.ug-login-heading{display:flex;flex-direction:column;gap:5px;margin:22px 0 18px;padding:22px;border-radius:12px;background:linear-gradient(110deg,#201e20,#35261e);border:1px solid #8b613a}.ug-login-heading span{color:#dcb374;letter-spacing:2px;font-size:11px;font-weight:900}.ug-login-heading strong{color:#f6eee1;font:clamp(24px,4vw,40px) Impact,'Arial Narrow',sans-serif;letter-spacing:1.2px}.war-room:has(.ug-login-heading)>section:first-child{background:linear-gradient(135deg,#1c1b20,#111317);border-color:#675039}.war-room:has(.ug-login-heading) .war-quantity{display:grid;gap:8px;color:#e3c49a;font-weight:800}.war-room:has(.ug-login-heading) .war-quantity input{max-width:480px;background:#0d1015;color:#fff;border:1px solid #776044;border-radius:7px;padding:13px}
