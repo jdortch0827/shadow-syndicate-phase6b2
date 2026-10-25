@@ -47,7 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
-import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession,registerShadowAccount,saveShadowSession} from "./lib/shadowAuth";
+import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession,registerShadowAccount,saveShadowSession,shadowUserFromToken} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -3173,34 +3173,32 @@ export default function App() {
     setSetupError("");
   }
 
-  async function signIn(username, password, email) {
-    const cleanUsername = normalizeUsername(username);
-    const user = users[cleanUsername];
-
-    if (!user || !passwordMatches(user, password)) {
-      return "That username or password is not right.";
-    }
-
-    try { await ensureShadowHomeSession({email,password,username:cleanUsername,migrate:true}); } catch(error) { return "Online sign-in: "+error.message; }
-    setOnlineReady(true);
-    const nextUsers = {
-      ...users,
-      [cleanUsername]: {
-        ...user,
-        lastLoginAt: Date.now(),
-      },
-    };
-
+  async function signIn(email, password) {
+    const cleanEmail=String(email||"").trim().toLowerCase();
+    if(!cleanEmail.includes("@"))return "Enter your email address.";
+    const candidates=Object.entries(users).filter(([name,user])=>name!==ADMIN_USERNAME&&passwordMatches(user,password)&&(user.email?.toLowerCase()===cleanEmail||!user.email));
+    const linked=Object.entries(users).find(([,user])=>user.email?.toLowerCase()===cleanEmail);
+    if(linked&&!passwordMatches(linked[1],password))return "Incorrect password.";
+    if(!linked&&candidates.length>1)return "More than one old character uses that password. Contact support to link the correct save.";
+    const legacy=linked||candidates[0]||null;
+    let token;
+    try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy)});}
+    catch(error){return "Online sign-in: "+error.message;}
+    if(!token)return "Unable to verify your online session.";
+    const identity=shadowUserFromToken(token);
+    const cleanUsername=normalizeUsername(legacy?.[0]||identity?.username||cleanEmail.split("@")[0]);
+    const user=users[cleanUsername]||createAuthUser({username:cleanUsername,displayName:identity?.username||cleanUsername,password,pin:"",role:"player"});
+    const nextUsers={...users,[cleanUsername]:{...user,email:cleanEmail,lastLoginAt:Date.now()}};
     refreshUsers(nextUsers);
-    const nextSession = { username: cleanUsername, signedInAt: Date.now() };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession={username:cleanUsername,signedInAt:Date.now()};
+    localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
     setSession(nextSession);
-
-    const loadedGame = loadGameForUser(cleanUsername);
+    setOnlineReady(true);
+    const loadedGame=loadGameForUser(cleanUsername);
     setGame(loadedGame);
     syncSetupState(loadedGame);
-    setTab(user.mustResetPassword ? "account" : "command");
-    return user.mustResetPassword ? "Temporary password accepted. Please change your password on the Account screen." : "";
+    setTab(user.mustResetPassword?"account":"command");
+    return "";
   }
 
   async function createPlayerAccount({ username, email, displayName, password, confirmPassword, pin }) {
