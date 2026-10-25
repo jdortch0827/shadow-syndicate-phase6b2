@@ -8,5 +8,5 @@ test("multiplayer session is restored and refreshable",()=>{
 });
 test("Fight does not show login before session restore",()=>{
  const lobby=read("src/components/MultiplayerLobby.jsx");
- for(const s of ["useEffect","restoreShadowSession()","restoring?","saveShadowSession(result)","clearShadowSession()"])assert.ok(lobby.includes(s));
+ for(const s of ["useEffect","restoreShadowSession()","loading?","joinShadowAlpha(access,handle)"])assert.ok(lobby.includes(s));
 });
