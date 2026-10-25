@@ -26,7 +26,7 @@ export async function loadMyPlayer(token){
  return rows?.[0]||null;
 }
 
-export const loadFightReports=token=>api(token,"ss_battle_reports?target=eq.mob-pvp&select=id,attacker_id,defender_id,won,attack,defense,reward,created_at&order=created_at.desc&limit=30");
+export const loadFightReports=token=>{const uid=parseJwtUser(token);return api(token,"ss_battle_reports?target=eq.mob-pvp&or=(attacker_id.eq."+encodeURIComponent(uid)+",defender_id.eq."+encodeURIComponent(uid)+")&select=id,attacker_id,defender_id,won,attack,defense,reward,created_at&order=created_at.desc&limit=30")};
 
 export const loadMyWallet=(token,userId,worldId)=>api(token,"ss_world_members?user_id=eq."+encodeURIComponent(userId)+"&world_id=eq."+encodeURIComponent(worldId)+"&select=cash,energy,level&limit=1");
 export const loadMyGear=(token,userId)=>api(token,"ss_mob_gear?user_id=eq."+encodeURIComponent(userId)+"&select=slot,item_id,owned,attack,defense&order=slot.asc");
