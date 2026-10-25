@@ -5682,7 +5682,7 @@ export default function App() {
           )}
 
           {tab === "multiplayer" && (
-            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby legacyHandle={currentUser?.displayName||game.bossName||session?.username||""} /></Panel>
+            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby legacyHandle={currentUser?.displayName||game.bossName||session?.username||""} onPractice={()=>goToTab("pvp")} /></Panel>
           )}
 
           {tab === "warroom" && (
