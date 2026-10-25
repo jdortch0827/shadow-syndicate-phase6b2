@@ -4778,6 +4778,10 @@ export default function App() {
       // Imported data is tied to this already authenticated browser account.
       // Neither auth credentials nor online Supabase identities are imported.
       localStorage.setItem(key,JSON.stringify(incoming));
+      // Match the visible account label to the restored boss, without changing auth identity.
+      if(currentUser?.displayName===session.username || !currentUser?.displayName || String(currentUser?.displayName||"").startsWith("player_")){
+        refreshUsers({...users,[session.username]:{...currentUser,displayName:incoming.bossName}});
+      }
       setGame(incoming);
       syncSetupState(incoming);
       setTab("command");
