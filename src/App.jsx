@@ -45,6 +45,10 @@ import HomePage from "./pages/HomePage";
 import JobsPage from "./pages/JobsPage";
 import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
+import WarRoom from "./components/WarRoom";
+import MultiplayerLobby from "./components/MultiplayerLobby";
+import {clearShadowSession} from "./lib/shadowAuth";
+import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -901,6 +905,18 @@ const pageCards = [
     desc: "Build muscle, buy gear, and increase your power.",
   },
   {
+    tab: "multiplayer",
+    title: "The Underground",
+    image: "/art/pages/city-wire.jpg",
+    desc: "Fight real mobsters, settle grudges, and talk trash in the forums.",
+  },
+  {
+    tab: "warroom",
+    title: "War Room",
+    image: "/art/pages/revenge-log.jpg",
+    desc: "Train troops, raid enemy positions, heal wounded, and review battles.",
+  },
+  {
     tab: "territory",
     title: "Take Districts",
     image: "/ui/take-districts.png",
@@ -1192,6 +1208,7 @@ const startGame = {
   energySkill: 0,
   jobsRun: 0,
   territory: defaultTerritory,
+  warfare: { troops: { runners: 0, enforcers: 0, specialists: 0 }, hospital: { runners: 0, enforcers: 0, specialists: 0 }, reports: [] },
   properties: {},
   propertyUpgrades: {},
   supplyRoutes: {},
@@ -2650,6 +2667,7 @@ function normalizeGame(game) {
     ...startGame,
     ...(game || {}),
     territory: { ...startGame.territory, ...((game || {}).territory || {}) },
+    warfare: { ...startGame.warfare, ...((game || {}).warfare || {}), troops: { ...startGame.warfare.troops, ...((game || {}).warfare?.troops || {}) }, hospital: { ...startGame.warfare.hospital, ...((game || {}).warfare?.hospital || {}) }, reports: Array.isArray((game || {}).warfare?.reports) ? (game || {}).warfare.reports.slice(0, 20) : [] },
     properties: { ...startGame.properties, ...((game || {}).properties || {}) },
     propertyUpgrades: { ...startGame.propertyUpgrades, ...((game || {}).propertyUpgrades || {}) },
     supplyRoutes: { ...startGame.supplyRoutes, ...((game || {}).supplyRoutes || {}) },
@@ -3064,7 +3082,7 @@ export default function App() {
     fetch(`/version.json?ts=${Date.now()}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((remote) => {
-        if (remote?.version && remote.version !== APP_VERSION) {
+        if (remote?.version && isNewerAppVersion(remote.version, APP_VERSION)) {
           setUpdateReady(true);
         }
       })
@@ -3072,6 +3090,18 @@ export default function App() {
 
     return () => window.removeEventListener("shadow-syndicate-update-ready", onUpdateReady);
   }, []);
+
+  function isNewerAppVersion(remoteVersion, currentVersion) {
+    const parts = (value) => String(value).match(/\d+/g)?.map(Number) || [];
+    const remote = parts(remoteVersion);
+    const current = parts(currentVersion);
+    if (!remote.length || !current.length) return false;
+    for (let i = 0; i < Math.max(remote.length, current.length); i += 1) {
+      const delta = (remote[i] || 0) - (current[i] || 0);
+      if (delta !== 0) return delta > 0;
+    }
+    return false;
+  }
 
   function applyAvailableUpdate() {
     try {
@@ -3085,6 +3115,7 @@ export default function App() {
     }
 
     const waitingWorker = updateRegistration?.waiting || window.__SHADOW_SYNDICATE_SW_REGISTRATION__?.waiting;
+    setUpdateReady(false);
     if (waitingWorker) {
       waitingWorker.postMessage({ type: "SKIP_WAITING" });
       return;
@@ -3222,6 +3253,7 @@ export default function App() {
       localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
+    clearShadowSession();
     setSession(null);
     setTab("command");
   }
@@ -5376,62 +5408,84 @@ export default function App() {
           <ErrorBoundary>
           {tab === "command" && (
             <HomePage>
-            <Panel title="Command Center" sub="Choose your next move and keep the city moving in your direction.">
-              <NewPlayerIntroCard
-                bossName={game.bossName}
-                bossClass={bossClass}
-                district={districtName(game.startingDistrictId || "docks")}
-                firstMoves={firstMoves}
-                onNavigate={goToTab}
-              />
-
-              <RevengeAlert revenge={activeRevengeAlert} nemesisCount={activeNemesisCount} onRetaliate={retaliateAgainst} onOpen={() => goToTab("pvp")} />
-
-              <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
-
-              <HomeGuideCard
-                cash={game.cash}
-                energy={game.energy}
-                heat={heat}
-                ownedFronts={ownedPropertyCount}
-                onNavigate={goToTab}
-              />
-
-              <RecommendedNextMoveCard move={oneRecommendedMove} onNavigate={goToTab} />
-
-              {!game.hideFirstNightGuidance && (
-                <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />
-              )}
-
-              <LockedContentPreview
-                game={game}
-                ownedFronts={ownedPropertyCount}
-                onNavigate={goToTab}
-              />
-
-              <section className="home-page-links">
-                <button className="home-link-card" type="button" onClick={() => goToTab("jobs")}>
-                  <span>Jobs</span>
-                  <strong>Earn Quick Cash</strong>
-                  <small>Run jobs for cash, XP, and heat.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("empire")}>
-                  <span>Empire</span>
-                  <strong>Buy First Front</strong>
-                  <small>Turn cash into income and long-term power.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("pvp")}>
-                  <span>Fight</span>
-                  <strong>{activeRevengeAlert ? "Get Revenge" : "Pick a Fight"}</strong>
-                  <small>Build respect, settle grudges, and watch your health.</small>
-                </button>
-                <button className="home-link-card" type="button" onClick={() => goToTab("more")}>
-                  <span>More</span>
-                  <strong>View Full Stats</strong>
-                  <small>Profile, settings, save tools, and secondary systems.</small>
-                </button>
-              </section>
-
+              <section className="syndicate-dashboard" aria-label="Syndicate command center">
+                <div className="syndicate-masthead">
+                  <div>
+                    <p className="kicker">Your criminal empire · Command HQ</p>
+                    <h2>Rule the streets.</h2><div className="ug-home-promo"><div><span>LIVE PLAYER WARFARE</span><strong>THE UNDERGROUND IS OPEN.</strong><p>Real rivals. Real fight records. The kind of grudges that make a name.</p></div><button type="button" onClick={() => goToTab("multiplayer")}>ENTER MOB WARS ↗</button></div>
+                    <p>Every empire starts with one move. Choose yours.</p>
+                  </div>
+                  <div className="syndicate-boss">
+                    <span className="kicker">The Boss</span>
+                    <strong>{game.bossName || "Rookie"}</strong>
+                    <small>{bossClass.name} · {districtName(game.startingDistrictId || "docks")}</small>
+                  </div>
+                </div>
+                <div className="syndicate-action-grid">
+                  <button type="button" className="syndicate-action primary-action" onClick={() => goToTab("jobs")}>
+                    <span className="kicker">01 · Make money</span><strong>Run a Job</strong><small>Earn cash and experience</small><b>Enter Jobs →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("pvp")}>
+                    <span className="kicker">02 · Build reputation</span><strong>Attack a Rival</strong><small>Fight for respect and settle grudges</small><b>Enter Fight →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("empire")}>
+                    <span className="kicker">03 · Own the city</span><strong>Manage Empire</strong><small>Buy fronts and expand your turf</small><b>Enter Empire →</b>
+                  </button>
+                  <button type="button" className="syndicate-action" onClick={() => goToTab("crew")}>
+                    <span className="kicker">04 · Grow your power</span><strong>Recruit Crew</strong><small>Strengthen your organization</small><b>Build Crew →</b>
+                  </button>
+                </div>
+                <div className="syndicate-lower">
+                  <section className="syndicate-territory">
+                    <div className="syndicate-section-heading"><div><p className="kicker">Territory</p><h3>Your city is waiting</h3></div><button type="button" onClick={() => goToTab("empire")}>View Districts →</button></div>
+                    <div className="syndicate-city-summary">
+                      <span>City influence <strong>{cityControl}%</strong></span>
+                      <span>Strongholds <strong>{strongholdDistricts}/6</strong></span>
+                      <span>Controlled <strong>{controlledDistricts}/6</strong></span>
+                    </div>
+                    <div className="syndicate-city-map" role="group" aria-label="District territory overview">
+                      {districts.map((district) => {
+                        const control = Math.max(0, Math.min(100, Number(game.territory?.[district.id] || 0)));
+                        const locked = Number(game.level || 1) < district.level;
+                        return (
+                          <button
+                            key={district.id}
+                            type="button"
+                            className={`syndicate-map-zone syndicate-zone-${district.id} ${control >= 100 ? "controlled" : control >= 75 ? "stronghold" : control > 0 ? "contested" : "unclaimed"}`}
+                            onClick={() => goToTab("territory")}
+                            aria-label={`${district.name}: ${control}% control. ${locked ? `Unlocks at level ${district.level}.` : "Open district control."}`}
+                          >
+                            <span className="syndicate-map-zone-status">{locked ? `LVL ${district.level}` : control >= 100 ? "CONTROLLED" : control >= 75 ? "STRONGHOLD" : control > 0 ? "INFLUENCE" : "UNCLAIMED"}</span>
+                            <strong>{district.name}</strong>
+                            <span className="syndicate-zone-meter"><i style={{ width: `${control}%` }} /></span>
+                            <small>{control}% control</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="syndicate-map-footer">
+                      <span>Next target: <strong>{nextTurfTarget.name}</strong></span>
+                      <button type="button" onClick={() => goToTab("territory")}>Take Territory →</button>
+                    </div>
+                  </section>
+                  <section className="syndicate-brief">
+                    <p className="kicker">Street intelligence</p>
+                    <h3>Your next move</h3>
+                    <p>{oneRecommendedMove?.title || "Run your first job"}</p>
+                    <button className="primary" type="button" onClick={() => goToTab(oneRecommendedMove?.action || "jobs")}>Take Action →</button>
+                    <div className="syndicate-brief-line"><span>Cash</span><strong>${Number(game.cash || 0).toLocaleString()}</strong></div>
+                    <div className="syndicate-brief-line"><span>Crew</span><strong>{game.crew || 0}</strong></div>
+                    <div className="syndicate-brief-line"><span>Heat</span><strong>{heat}</strong></div>
+                  </section>
+                </div>
+                <details className="syndicate-secondary">
+                  <summary>Progression, unlocks & recent activity</summary>
+                  <div className="syndicate-secondary-inner">
+                    <RevengeAlert revenge={activeRevengeAlert} nemesisCount={activeNemesisCount} onRetaliate={retaliateAgainst} onOpen={() => goToTab("pvp")} />
+                    <StorePrompt prompt={activeStorePrompt} onOpen={() => goToTab("store")} onDismiss={() => setDismissedStorePrompt(true)} />
+                    <HomeGuideCard cash={game.cash} energy={game.energy} heat={heat} ownedFronts={ownedPropertyCount} onNavigate={goToTab} />
+                    {!game.hideFirstNightGuidance && <FirstNightChecklist progress={firstNightProgress} onNavigate={goToTab} />}
+                    <LockedContentPreview game={game} ownedFronts={ownedPropertyCount} onNavigate={goToTab} />
               <section className="recent-activity-card">
                 <p className="kicker">Recent Activity</p>
                 {game.log?.length ? (
@@ -5444,7 +5498,10 @@ export default function App() {
                   <p className="soft-text">No activity yet. Run a job to start building your name.</p>
                 )}
               </section>
-            </Panel>
+
+                  </div>
+                </details>
+              </section>
             </HomePage>
           )}
 
@@ -5624,6 +5681,16 @@ export default function App() {
             </EmpirePage>
           )}
 
+          {tab === "multiplayer" && (
+            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby legacyHandle={currentUser?.displayName||game.bossName||session?.username||""} /></Panel>
+          )}
+
+          {tab === "warroom" && (
+            <Panel title="War Room" sub="Train troops, raid simulated enemy positions, heal wounded, and inspect battle reports.">
+              <WarRoom game={game} onTrain={(type, qty) => setGame(old => { const result = trainTroops(old, type, qty); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onRaid={(target, troops) => setGame(old => { const result = resolveRaid(old, target, troops); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} onHeal={() => setGame(old => { const result = healTroops(old); if (!result.ok) { window.alert(result.error); return old; } return addLog(result.game, result.message); })} />
+            </Panel>
+          )}
+
           {tab === "store" && (
             <StorePage>
             <Panel title="Tribute Store" sub="Mock store for testing only. Real purchases are not active.">
@@ -5655,36 +5722,11 @@ export default function App() {
                 crewLoyalty={crewLoyalty}
                 skillStats={skillStats}
                 onNavigate={goToTab}
+                onExpand={expandDistrict}
+                onCollect={collectDistrictTribute}
               />
 
-              <div className="card-grid">
-                {districts.map((district) => {
-                  const control = game.territory[district.id] || 0;
-                  const tier = getControlTier(control);
-                  const tribute = getDistrictTribute(district, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
-                  const collection = getCollectionStatus(game, district.id);
 
-                  return (
-                    <Card key={district.id} title={district.name} tag={tier.label}>
-                      <Progress label="Control" value={control} max={100} />
-                      <p className="soft-text district-desc">{tier.desc}</p>
-                      <Info label="Unlock Level" value={district.level} />
-                      <Info label="Risk" value={district.risk} />
-                      <Info label="Property Income" value={`${Math.round(tier.incomeBonus * 100)}%`} />
-                      <Info label="Tribute" value={control >= 25 ? money(tribute) : "Needs 25% control"} />
-                      <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
-                      <div className="button-row compact-row">
-                        <button className="primary" onClick={() => expandDistrict(district)}>
-                          Expand
-                        </button>
-                        <button className="secondary" disabled={control < 25 || !collection.ready} onClick={() => collectDistrictTribute(district)}>
-                          Collect Tribute
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
             </Panel>
           )}
 
@@ -5866,7 +5908,7 @@ export default function App() {
 
           {tab === "pvp" && (
             <FightPage>
-            <Panel title="PvP Hub" sub="Local simulated player-vs-player foundation. Find targets, start grudges, set defense, and test future multiplayer flow without a backend yet.">
+            <Panel title="Practice Fights · Offline Training" sub="Practice against fictional rivals. These battles are simulated and do not affect the online rankings or other players."><button className="ug-enter-live" type="button" onClick={() => goToTab("multiplayer")}>ENTER LIVE MOB WARS — FIGHT REAL PLAYERS ↗</button>
               <PageHelperCard title="Fight creates grudges" text="Fight uses Health, Crew, PvP Power, Respect, and Revenge. Pick targets carefully and hit back when someone takes from you." />
               <PvpHub
                 game={game}
@@ -6730,45 +6772,72 @@ function RewardFeedbackPanel({ rank, recentRewards, loginReward, loginRewardClai
   );
 }
 
-function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate }) {
+function DistrictVisualOverview({ districts, game, bossClass, crewLoyalty, skillStats, onNavigate, onExpand, onCollect }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = districts.find((district) => district.id === selectedId) || districts.find((district) => district.id === game.startingDistrictId) || districts[0];
+  const control = Number(game.territory?.[selected.id] || 0);
+  const tier = getControlTier(control);
+  const tribute = getDistrictTribute(selected, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
+  const collection = getCollectionStatus(game, selected.id);
+  const selectedLocked = Number(game.level || 1) < Number(selected.level || 1);
+  const ownedFronts = properties.filter((property) => property.district === selected.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
+  const pressure = rivals.filter((rival) => rival.district === selected.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
+  const districtFronts = properties.filter((property) => property.district === selected.id);
+  const districtRivals = rivals.filter((rival) => rival.district === selected.id);
+  const districtPressure = districtRivals.length ? Math.round(pressure / districtRivals.length) : 0;
+  const nextMilestone = control < 25 ? 25 : control < 50 ? 50 : control < 75 ? 75 : control < 100 ? 100 : null;
   return (
-    <section className="district-visual-overview">
+    <section className="district-visual-overview territory-command-map">
       <div className="section-heading-row">
-        <div>
-          <p className="kicker">City Map</p>
-          <h3>District Visual Control</h3>
-        </div>
-        <button className="secondary compact-button" type="button" onClick={() => onNavigate("properties")}>Open Fronts</button>
+        <div><p className="kicker">City Map · Live Influence</p><h3>Choose Your District</h3></div>
+        <button className="secondary compact-button" type="button" onClick={() => onNavigate("properties")}>Manage Fronts</button>
       </div>
-      <div className="district-visual-grid">
+      <div className="territory-select-grid" role="group" aria-label="Select a district to manage">
         {districts.map((district) => {
-          const control = game.territory[district.id] || 0;
-          const tier = getControlTier(control);
-          const tribute = getDistrictTribute(district, control, bossClass.income, crewLoyalty, skillStats.tributeMultiplier);
-          const ownedFronts = properties.filter((property) => property.district === district.id).reduce((sum, property) => sum + Number(game.properties?.[property.id] || 0), 0);
-          const pressure = rivals.filter((rival) => rival.district === district.id).reduce((sum, rival) => sum + Number(game.rivalPressure?.[rival.id] || 0), 0);
+          const amount = Number(game.territory?.[district.id] || 0);
+          const status = getControlTier(amount);
+          const locked = Number(game.level || 1) < district.level;
           return (
-            <article key={district.id} className="district-visual-card">
-              <div className="district-visual-top">
-                <strong>{district.name}</strong>
-                <span>{tier.label}</span>
-              </div>
-              <Progress label="Control" value={control} max={100} />
-              <div className="district-visual-stats">
-                <span>Tribute <strong>{control >= 25 ? money(tribute) : "Locked"}</strong></span>
-                <span>Fronts <strong>{ownedFronts}</strong></span>
-                <span>Rival Heat <strong>{pressure}/100</strong></span>
-                <span>Risk <strong>{district.risk}</strong></span>
-              </div>
-              <p className="soft-text">{control < 25 ? "Recommended: expand control until tribute unlocks." : control < 75 ? "Recommended: push toward stronghold status." : "Recommended: hold the district and collect tribute."}</p>
-            </article>
+            <button key={district.id} type="button"
+              className={`territory-select-zone ${selected.id === district.id ? "is-selected" : ""} ${amount >= 75 ? "is-stronghold" : ""}`}
+              aria-pressed={selected.id === district.id}
+              onClick={() => setSelectedId(district.id)}>
+              <span className="territory-zone-eyebrow">{locked ? `UNLOCKS AT LEVEL ${district.level}` : amount >= 100 ? "FULL CONTROL" : status.label}</span>
+              <strong>{district.name}</strong>
+              <span className="territory-zone-track"><i style={{width:`${Math.min(100,Math.max(0,amount))}%`}} /></span>
+              <small>{amount}% influence</small>
+            </button>
           );
         })}
+      </div>
+      <div className="territory-selected-panel" aria-live="polite">
+        <div className="territory-selected-heading">
+          <div><p className="kicker">District Operations</p><h3>{selected.name}</h3><p className="soft-text">{tier.desc}</p></div>
+          <span className="territory-selected-percent">{control}%<small>CONTROL</small></span>
+        </div>
+        {selectedLocked && <p className="soft-text" role="status">Reach Level {selected.level} to expand into {selected.name}. You can still inspect its district intel.</p>}
+        <Progress label="Influence" value={control} max={100} />
+        <div className="territory-selected-stats">
+          <Info label="Unlock Level" value={selected.level} />
+          <Info label="Risk" value={selected.risk} />
+          <Info label="Rival Heat" value={`${districtPressure}/100`} />
+          <Info label="Owned Fronts" value={ownedFronts} />
+          <Info label="Property Income" value={`${Math.round(tier.incomeBonus * 100)}%`} />
+          <Info label="Tribute" value={control >= 25 ? money(tribute) : "Needs 25% control"} />
+          <Info label="Tribute Status" value={control >= 25 ? collection.label : "Locked"} />
+        </div>
+        <div className="territory-intel-summary">
+          <div><strong>{nextMilestone === null ? "District secured" : `${nextMilestone - control}% to next milestone`}</strong><small>{nextMilestone === null ? "Full influence achieved" : `${nextMilestone}% influence target`}</small></div>
+          <div><strong>{districtFronts.length} available fronts</strong><small>{ownedFronts} owned · {districtRivals.length} rival crews</small></div>
+        </div>
+        <div className="button-row compact-row territory-selected-actions">
+          <button className="primary" type="button" disabled={selectedLocked || control >= 100} onClick={() => onExpand(selected)}>{selectedLocked ? `Unlocks at Level ${selected.level}` : control >= 100 ? "District Fully Controlled" : `Expand ${selected.name}`}</button>
+          <button className="secondary" type="button" disabled={control < 25 || !collection.ready} onClick={() => onCollect(selected)}>Collect Tribute</button>
+        </div>
       </div>
     </section>
   );
 }
-
 
 
 
@@ -7046,6 +7115,8 @@ function MoreMenuPanel({ cards, onNavigate }) {
 function EmpireHubPanel({ stats = [], damagedFronts = [], shieldActive = false, onNavigate }) {
   const quickLinks = [
     ["territory", "Turf", "Take districts and build control."],
+    ["warroom", "War Room", "Train troops, raid positions, and heal wounded."],
+    ["multiplayer", "Shadow City Alpha", "Join the shared multiplayer test world."],
     ["properties", "Fronts", "Buy, repair, and upgrade income fronts."],
     ["safehouse", "Safehouse", "Permanent base upgrades."],
     ["vault", "Vault", "Protect cash and launder money."],

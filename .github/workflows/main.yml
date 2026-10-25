@@ -1,0 +1,34 @@
+
+name: Shadow Syndicate Build Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase-1-53-cinematic-test
+
+concurrency:
+  group: shadow-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get game files
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test warfare logic
+        run: npm test
+
+      - name: Build Shadow Syndicate
+        run: npm run build
