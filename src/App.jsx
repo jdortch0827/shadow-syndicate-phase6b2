@@ -905,9 +905,9 @@ const pageCards = [
   },
   {
     tab: "multiplayer",
-    title: "Shadow City Alpha",
+    title: "The Underground",
     image: "/art/pages/city-wire.jpg",
-    desc: "Sign in and join the shared online world.",
+    desc: "Fight real mobsters, settle grudges, and talk trash in the forums.",
   },
   {
     tab: "warroom",
