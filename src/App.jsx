@@ -3181,7 +3181,7 @@ export default function App() {
     if(linked&&!passwordMatches(linked[1],password))return "Incorrect password.";
     if(!linked&&candidates.length>1)return "More than one old character uses that password. Contact support to link the correct save.";
     const legacy=linked||candidates[0]||null;
-    if(!legacy){return "This email does not have an online account yet. Select New Player to create one. Your existing local character will not be deleted."; }
+    if(!legacy){return "No matching local character found on this device. Use New Player to register this email, or return to the browser where your original character is saved."; }
     let token;
     try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy)});}
     catch(error){return "Online sign-in: "+error.message;}
