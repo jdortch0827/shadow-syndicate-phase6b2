@@ -3389,11 +3389,13 @@ export default function App() {
   }
 
   function uploadGameProfileImage(file) {
-    let message = "";
+    if (!file) return "Choose a picture first.";
     readImageFile(file, (image) => {
-      message = updateGameProfileImage(image);
+      updateGameProfileImage(image);
+      setSetupError("");
+      showResult({title:"Avatar Updated",flavor:"Your boss picture has been resized and added to your profile."});
     });
-    return message;
+    return "Preparing your avatar...";
   }
 
   function startNewGame() {
@@ -5078,7 +5080,11 @@ export default function App() {
       setGame((old) => ({ ...old, pageFocusTarget: focusTarget }));
     }
     if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+      window.requestAnimationFrame(() => {
+        const targetElement = target === "account" ? document.querySelector(".focused-page-panel") : null;
+        if (targetElement) targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     }
   }
 
