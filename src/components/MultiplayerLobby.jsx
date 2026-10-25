@@ -9,7 +9,7 @@ export default function MultiplayerLobby({legacyHandle="",onPractice,initialSect
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[handle,setHandle]=useState(()=>String(legacyHandle).replace(/[^A-Za-z0-9_]/g,"").slice(0,24));
  const [token,setToken]=useState(""),[world,setWorld]=useState(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
  const [restoring,setRestoring]=useState(true);
- const [showOnlineLink,setShowOnlineLink]=useState(false);
+ const [showOnlineLink,setShowOnlineLink]=useState(initialSection==="social");
  const [bases,setBases]=useState([]),[troops,setTroops]=useState([]),[battles,setBattles]=useState([]),[targets,setTargets]=useState([]);
  const refresh=async(currentWorld,accessToken)=>{const results=await Promise.allSettled([readAlphaBases(accessToken,currentWorld.world_id),readAlphaTroops(accessToken,currentWorld.world_id),readAlphaBattles(accessToken,currentWorld.world_id),readCombatTargets(accessToken)]);const [baseRows,troopRows,battleRows,targetRows]=results.map(r=>r.status==="fulfilled"?r.value:[]);setBases(baseRows);setTroops(troopRows);setBattles(battleRows);setTargets(targetRows);};
  useEffect(()=>{let active=true;(async()=>{try{const saved=await restoreShadowSession();if(!active||!saved)return;setToken(saved);const player=await loadMyPlayer(saved);if(!active)return;if(player?.handle){setHandle(player.handle);const joined=await joinShadowAlpha(saved,player.handle);if(!active)return;setWorld(joined);await refresh(joined,saved);if(active)setMessage("Welcome back to the Underground.");}}catch(error){if(active)setMessage("Your online session needs attention: "+error.message)}finally{if(active)setRestoring(false)}})();return()=>{active=false}},[]);
