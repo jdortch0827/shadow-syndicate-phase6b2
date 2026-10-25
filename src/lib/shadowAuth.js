@@ -31,9 +31,9 @@ export async function restoreShadowSession(){
 }
 
 export function shadowUserFromToken(accessToken){try{const payload=JSON.parse(atob(accessToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));return {id:payload.sub,email:payload.email,username:payload.user_metadata?.username||""}}catch{return null}}
-export async function ensureShadowHomeSession({email,password,username,create=false}){
+export async function ensureShadowHomeSession({email,password,username,create=false,migrate=false}){
  const existing=await restoreShadowSession();if(existing)return existing;
  if(!email||!password)throw new Error("Enter your email and password on the home login to enable online play.");
  if(create){const registered=await registerShadowAccount(email,password,username);if(registered.access_token){saveShadowSession(registered);return registered.access_token}}
- const signed=await signInShadowAccount(email,password);saveShadowSession(signed);return signed.access_token;
+ let signed;try{signed=await signInShadowAccount(email,password)}catch(error){if(!migrate)throw error;const registered=await registerShadowAccount(email,password,username);if(!registered.access_token)throw new Error("Check your email to verify the online account, then sign in again on the home page.");signed=registered;}saveShadowSession(signed);return signed.access_token;
 }
