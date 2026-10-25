@@ -19,3 +19,9 @@ function parseJwtUser(token){
  const part=token.split(".")[1];if(!part)throw new Error("Invalid session");
  const raw=atob(part.replace(/-/g,"+").replace(/_/g,"/"));return JSON.parse(raw).sub;
 }
+
+export async function loadMyPlayer(token){
+ const uid=parseJwtUser(token);
+ const rows=await api(token,"ss_players?user_id=eq."+encodeURIComponent(uid)+"&select=user_id,handle&limit=1");
+ return rows?.[0]||null;
+}
