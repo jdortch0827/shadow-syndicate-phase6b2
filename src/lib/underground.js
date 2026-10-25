@@ -27,3 +27,8 @@ export async function loadMyPlayer(token){
 }
 
 export const loadFightReports=token=>api(token,"ss_battle_reports?target=eq.mob-pvp&select=id,attacker_id,defender_id,won,attack,defense,reward,created_at&order=created_at.desc&limit=30");
+
+export const loadMyWallet=(token,userId,worldId)=>api(token,"ss_world_members?user_id=eq."+encodeURIComponent(userId)+"&world_id=eq."+encodeURIComponent(worldId)+"&select=cash,energy,level&limit=1");
+export const loadMyGear=(token,userId)=>api(token,"ss_mob_gear?user_id=eq."+encodeURIComponent(userId)+"&select=slot,item_id,owned,attack,defense&order=slot.asc");
+export const buyMobGear=(token,itemId,count=1)=>api(token,"rpc/ss_mob_shop",{p_action:"buy",p_item:itemId,p_count:count,p_request:crypto.randomUUID()});
+export const recruitMob=(token,count=1)=>api(token,"rpc/ss_mob_shop",{p_action:"recruit",p_item:"mobster",p_count:count,p_request:crypto.randomUUID()});
