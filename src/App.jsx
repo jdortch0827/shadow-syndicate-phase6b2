@@ -47,7 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
-import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession} from "./lib/shadowAuth";
+import {clearShadowSession,restoreShadowSession,ensureShadowHomeSession,registerShadowAccount,saveShadowSession} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
