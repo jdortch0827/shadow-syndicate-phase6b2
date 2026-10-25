@@ -1,22 +1,42 @@
 import React,{useEffect,useState} from "react";
-import { registerShadowAccount,signInShadowAccount,joinShadowAlpha,saveShadowSession,restoreShadowSession,clearShadowSession } from "../lib/shadowAuth";
-import { readAlphaBases, readAlphaTroops, readAlphaBattles, readCombatTargets } from "../lib/alphaWorld";
-import AlphaWorldMap from "./AlphaWorldMap";
-import AlphaWarfare from "./AlphaWarfare";
-import Underground from "./Underground";
+import {joinShadowAlpha,restoreShadowSession,shadowUserFromToken} from "../lib/shadowAuth";
 import {loadMyPlayer} from "../lib/underground";
+import Underground from "./Underground";
+
+// The home page owns authentication. This screen never asks for credentials or signs players out.
 export default function MultiplayerLobby({legacyHandle="",onPractice}){
- const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[handle,setHandle]=useState(()=>String(legacyHandle).replace(/[^A-Za-z0-9_]/g,"").slice(0,24));
- const [token,setToken]=useState(""),[world,setWorld]=useState(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
- const [restoring,setRestoring]=useState(true);
- const [showOnlineLink,setShowOnlineLink]=useState(false);
- const [bases,setBases]=useState([]),[troops,setTroops]=useState([]),[battles,setBattles]=useState([]),[targets,setTargets]=useState([]);
- const refresh=async(currentWorld,accessToken)=>{const results=await Promise.allSettled([readAlphaBases(accessToken,currentWorld.world_id),readAlphaTroops(accessToken,currentWorld.world_id),readAlphaBattles(accessToken,currentWorld.world_id),readCombatTargets(accessToken)]);const [baseRows,troopRows,battleRows,targetRows]=results.map(r=>r.status==="fulfilled"?r.value:[]);setBases(baseRows);setTroops(troopRows);setBattles(battleRows);setTargets(targetRows);};
- useEffect(()=>{let active=true;(async()=>{try{const saved=await restoreShadowSession();if(!active||!saved)return;setToken(saved);const player=await loadMyPlayer(saved);if(!active)return;if(player?.handle){setHandle(player.handle);const joined=await joinShadowAlpha(saved,player.handle);if(!active)return;setWorld(joined);await refresh(joined,saved);if(active)setMessage("Welcome back to the Underground.");}}catch(error){if(active)setMessage("Your online session needs attention: "+error.message)}finally{if(active)setRestoring(false)}})();return()=>{active=false}},[]);
- const run=async(action)=>{setBusy(true);setMessage("");try{const result=await action();if(result.access_token){saveShadowSession(result);setToken(result.access_token);setMessage("Signed in. Enter Shadow City below.");try{const player=await loadMyPlayer(result.access_token);if(player?.handle){setHandle(player.handle);const joined=await joinShadowAlpha(result.access_token,player.handle);setWorld(joined);await refresh(joined,result.access_token);setMessage("Welcome back to the Underground.");}}catch(error){setMessage("Signed in. "+error.message);}}else if(result.user){setMessage("Account registered. Check your email for confirmation if required, then sign in.");}else if(result.world_id){setWorld(result);await refresh(result,token);setMessage("Joined Shadow City Alpha.");}}catch(error){setMessage(error.message)}finally{setBusy(false)}};
- return <div className="war-room"><section className="war-section"><div className="ug-eyebrow">SHADOW SYNDICATE / MULTIPLAYER</div><h3>Enter the Underground</h3><p>Fight real rivals, build your reputation and talk your trash in the forums. Your boss name carries over. Your offline save remains protected while account migration is being developed.</p><p className="ug-online-notice">LIVE ALPHA · Your game account stays signed in. Online player battles require a separate identity until secure account migration is complete.</p>
- {restoring?<p role="status">Opening the Underground...</p>:!token?<div className="ug-entry-card"><h3>ONLINE SESSION EXPIRED</h3><p>Sign in again from the home page. There is no separate Underground login.</p><button type="button" onClick={onPractice}>PRACTICE FIGHTS</button></div>:<><label className="war-quantity">Boss handle <input type="text" maxLength="24" value={handle} onChange={e=>setHandle(e.target.value)}/></label><button className="primary" type="button" disabled={busy||!!world||!/^[A-Za-z0-9_]{3,24}$/.test(handle)} onClick={()=>run(()=>joinShadowAlpha(token,handle))}>{world?"Entered Shadow City":"Enter Shared World"}</button><button className="secondary" type="button" onClick={()=>{clearShadowSession();setToken("");setWorld(null);setBases([]);setTroops([]);setBattles([]);setTargets([])}}>Sign Out</button></>}
- {world&&<><Underground token={token} world={world}/><button className="secondary" type="button" disabled={busy} onClick={()=>run(async()=>{await refresh(world,token);return {};})}>Refresh World</button><details><summary>Legacy Alpha Map (experimental)</summary><AlphaWorldMap bases={bases} selfId={world.user_id}/></details><details><summary>Experimental Army Systems</summary><section className="war-section"><h3>Online Troop Roster</h3>{troops.length?troops.map(unit=><p key={unit.unit_type}>{unit.unit_type}: {unit.available} ready, {unit.wounded} wounded</p>):<p>No online troops yet. The offline War Room uses separate units.</p>}</section><AlphaWarfare token={token} targets={targets} troops={troops} refresh={()=>refresh(world,token)}/><section className="war-section"><h3>Server Raid Targets</h3>{targets.length?targets.map(target=><p key={target.id}>{target.name} · Defense {target.defense} · Reward ${target.reward} · Level {target.minimum_level}+</p>):<p>Loading raid targets...</p>}<p>Server raids are enabled for Alpha testing. Results are recorded in your online battle log.</p></section><section className="war-section"><h3>Online Battle Reports</h3>{battles.length?battles.map(battle=><p key={battle.id}>{battle.won?"Victory":"Defeat"} · {battle.target} · Attack {battle.attack} · Defense {battle.defense} · Reward {battle.reward}</p>):<p>No online battle reports yet. Combat will be enabled after server validation.</p>}</section></details></>}
- {message&&<p role="status">{message}</p>}{world&&<div className="war-summary"><div><span>World</span><strong>Alpha</strong></div><div><span>Base X</span><strong>{world.x}</strong></div><div><span>Base Y</span><strong>{world.y}</strong></div></div>}
- <p className="war-disclaimer">Live Mob Wars is in Alpha testing. Real player fights, forums, mob recruitment and equipment purchases are available; crews and bounties are still being developed.</p></section></div>;
+ const [token,setToken]=useState("");
+ const [world,setWorld]=useState(null);
+ const [message,setMessage]=useState("");
+ const [loading,setLoading]=useState(true);
+ const [retry,setRetry]=useState(0);
+ useEffect(()=>{
+  let active=true;
+  (async()=>{
+   setLoading(true);
+   setMessage("");
+   try{
+    const access=await restoreShadowSession();
+    if(!access)throw new Error("Your session has expired. Please sign in again from the home page.");
+    const identity=shadowUserFromToken(access);
+    if(!identity?.id)throw new Error("Your account session could not be verified. Sign in again from the home page.");
+    const player=await loadMyPlayer(access);
+    // A new account gets a stable temporary handle. The boss name is selected in game setup.
+    const preferred=String(player?.handle||legacyHandle||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,24);
+    const fallback="boss_"+identity.id.replace(/-/g,"").slice(0,12);
+    const handle=preferred.length>=3?preferred:fallback;
+    const joined=await joinShadowAlpha(access,handle);
+    if(!active)return;
+    setToken(access);
+    setWorld(joined);
+   }catch(error){if(active)setMessage(error.message||"Could not enter the Underground.");}
+   finally{if(active)setLoading(false);}
+  })();
+  return()=>{active=false};
+ },[retry,legacyHandle]);
+ return <div className="ug-lobby">
+  {loading?<section className="ug-entry-card"><span>SHADOW SYNDICATE</span><h3>ENTERING THE UNDERGROUND</h3><p role="status">Connecting your game account to Shadow City...</p></section>:
+  world&&token?<Underground token={token} world={world}/>:
+  <section className="ug-entry-card"><span>CONNECTION UNAVAILABLE</span><h3>THE STREETS ARE OFFLINE.</h3><p role="alert">{message}</p><button className="primary" type="button" onClick={()=>setRetry(n=>n+1)}>TRY AGAIN</button>{onPractice&&<button className="secondary" type="button" onClick={onPractice}>PRACTICE FIGHTS</button>}</section>}
+ </div>;
 }
