@@ -1,4 +1,4 @@
-const APP_VERSION = "1.63";
+const APP_VERSION = "1.64";
 const CACHE_NAME = `shadow-syndicate-cache-${APP_VERSION}`;
 const CACHE_PREFIX = "shadow-syndicate-cache-";
 const APP_SHELL = [
