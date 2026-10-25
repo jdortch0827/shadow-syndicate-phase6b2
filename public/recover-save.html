@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shadow Syndicate — Recover your old save</title>
+<style>body{margin:0;background:radial-gradient(circle at top,#2f200e,#070709 70%);font:16px/1.55 system-ui,Arial;color:#f6f2ea;padding:22px}.wrap{max-width:620px;margin:45px auto;border:1px solid #8a5a20;background:#121115;border-radius:22px;padding:24px}h1{color:#ffbd57;line-height:1.1}h2{font-size:21px}p{color:#cecad0}.item{border:1px solid #51402a;border-radius:15px;padding:14px;margin:12px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.item strong,.item small{display:block}.item small{color:#a7a0a0}button,a.cta{cursor:pointer;border:0;border-radius:13px;background:#f59e0b;color:#171008;font:inherit;font-weight:850;padding:12px 16px;text-decoration:none}a{color:#ffca6c}mark{background:#392b0e;color:#ffe6b1;padding:3px 5px}.warning{border-left:3px solid #f59e0b;padding-left:12px}#status{color:#bbf7d0}.muted{font-size:13px}</style></head>
+<body><main class="wrap"><p>SHADOW SYNDICATE · ACCOUNT RECOVERY</p><h1>Bring your old boss home.</h1><p>This recovery page reads the saves stored <strong>in this browser for this original preview address</strong>. It does not read passwords, reset accounts, or delete anything.</p>
+<p class="warning">Use the same phone and browser where your earlier Shadow Syndicate progress was saved. Do not clear browsing data or uninstall the game.</p>
+<h2>Saved bosses found</h2><div id="saves"></div><p id="status" role="status"></p>
+<p class="muted">Download your save, then open <a href="https://shadowsyndicate.netlify.app">the current Shadow Syndicate game</a>. Sign in with your online email and select <mark>Restore Previous Save</mark> from the Account screen or new-boss setup screen.</p></main>
+<script>
+(function(){
+ const base="shadow_syndicate_live_source_save_v1";
+ const root=document.getElementById("saves"),status=document.getElementById("status");
+ const records=[];
+ for(let i=0;i<localStorage.length;i++){
+  const k=localStorage.key(i);
+  if(k!==base&&!k.startsWith(base+"_"))continue;
+  try{const game=JSON.parse(localStorage.getItem(k)||"null");if(!game||typeof game!=="object"||Array.isArray(game)||!game.started)continue;
+   records.push({sourceKey:k,username:k===base?"":k.slice(base.length+1),game});}catch{}
+ }
+ records.sort((a,b)=>Number(b.game.level||0)-Number(a.game.level||0));
+ if(!records.length){root.textContent="No started saves were found on this preview address. Your progress might be in another browser or website address.";return;}
+ for(const entry of records){
+  const box=document.createElement("div");box.className="item";
+  const info=document.createElement("div"),name=document.createElement("strong"),detail=document.createElement("small");
+  name.textContent=String(entry.game.bossName||"Unnamed Boss");
+  detail.textContent="Level "+String(entry.game.level||1)+" · "+(entry.username||"Shared Legacy Save");
+  info.append(name,detail);
+  const button=document.createElement("button");button.type="button";button.textContent="DOWNLOAD SAVE";
+  button.addEventListener("click",()=>{
+   try{
+    const data={format:"shadow-syndicate-save-transfer",version:1,exportedAt:new Date().toISOString(),username:entry.username,game:entry.game};
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download="shadow-syndicate-"+(String(entry.game.bossName||"boss").replace(/[^a-z0-9_-]/gi,"-").slice(0,26))+"-backup.json";
+    document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+    status.textContent="Backup downloaded. Return to the live game to restore it.";
+   }catch(e){status.textContent="Export failed: "+e.message}
+  });
+  box.append(info,button);root.append(box);
+ }
+})();
+</script></body></html>
