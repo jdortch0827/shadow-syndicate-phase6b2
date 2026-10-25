@@ -3361,12 +3361,42 @@ export default function App() {
     return "Boss profile picture updated.";
   }
 
-  function uploadGameProfileImage(file) {
-    let message = "";
-    readImageFile(file, (image) => {
-      message = updateGameProfileImage(image);
+  async function uploadGameProfileImage(file) {
+    if (!file) return "Choose an image first.";
+    if (!file.type?.startsWith("image/")) return "Choose a valid picture or GIF.";
+    if (file.size > 8 * 1024 * 1024) return "Choose an image smaller than 8 MB.";
+    const source = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read the selected picture."));
+      reader.readAsDataURL(file);
+    }).catch(error => error);
+    if (source instanceof Error) return source.message;
+    // Keep animated GIFs intact; unlike photos they cannot safely be flattened.
+    if (file.type === "image/gif") {
+      if (file.size > 350 * 1024) return "Animated GIFs need to be under 350 KB for local saves. Try a smaller GIF.";
+      return updateGameProfileImage(source);
+    }
+    const compressed = await new Promise(resolve => {
+      const image = new Image();
+      image.onload = () => {
+        try {
+          const edge=256, canvas=document.createElement("canvas"), ctx=canvas.getContext("2d");
+          if(!ctx){resolve(source);return;}
+          const scale=Math.min(1,edge/Math.max(image.naturalWidth,image.naturalHeight));
+          canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+          canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+          ctx.fillStyle="#18181b";ctx.fillRect(0,0,canvas.width,canvas.height);
+          ctx.drawImage(image,0,0,canvas.width,canvas.height);
+          resolve(canvas.toDataURL("image/jpeg",0.78));
+        } catch { resolve(source); }
+      };
+      image.onerror=()=>resolve(null);
+      image.src=source;
     });
-    return message;
+    if (!compressed) return "The selected picture could not be opened.";
+    if (compressed.length > 450000) return "That picture is too large to save. Choose a smaller file.";
+    return updateGameProfileImage(compressed);
   }
 
   function startNewGame() {
@@ -5051,7 +5081,7 @@ export default function App() {
       setGame((old) => ({ ...old, pageFocusTarget: focusTarget }));
     }
     if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+      window.requestAnimationFrame(() => { const destination=document.querySelector(".focused-page-panel"); if(destination) destination.scrollIntoView({ behavior: "smooth", block: "start" }); else window.scrollTo({ top:0, behavior:"smooth" }); });
     }
   }
 
@@ -5413,7 +5443,7 @@ export default function App() {
                   <div>
                     <p className="kicker">Your criminal empire · Command HQ</p>
                     <h2>Rule the streets.</h2><div className="ug-home-promo"><div><span>LIVE PLAYER WARFARE</span><strong>THE UNDERGROUND IS OPEN.</strong><p>Real rivals. Real fight records. The kind of grudges that make a name.</p></div><button type="button" onClick={() => goToTab("multiplayer")}>ENTER MOB WARS ↗</button></div>
-                    <p>Every empire starts with one move. Choose yours.</p>
+                    <p>Every empire starts with one move. Choose yours.</p><button type="button" className="secondary" onClick={() => goToTab("social")}>OPEN STREET CHAT & PLAYER WALLS →</button>
                   </div>
                   <div className="syndicate-boss">
                     <span className="kicker">The Boss</span>
@@ -5679,6 +5709,10 @@ export default function App() {
               />
             </Panel>
             </EmpirePage>
+          )}
+
+          {tab === "social" && (
+            <Panel title="Street Chat · Mobster Profiles" sub="Real players. Real grudges. Public conversations and profile walls."><MultiplayerLobby legacyHandle={currentUser?.displayName||game.bossName||session?.username||""} initialSection="social" onPractice={()=>goToTab("pvp")} /></Panel>
           )}
 
           {tab === "multiplayer" && (
@@ -7319,7 +7353,7 @@ function AccountPanel({ currentUser, users, game, bossClass, onDisplayName, onCh
         <section className="account-box">
           <h3>Profile Picture / GIF</h3>
           <p className="soft-text">Upload a picture, animated GIF, or paste an image/GIF URL.</p>
-          <input className="file-input full" type="file" accept="image/*,.gif" onChange={(e) => showMessage(onImageFile(e.target.files?.[0]))} />
+          <input className="file-input full" type="file" accept="image/*,.gif" onChange={async (e) => showMessage(await onImageFile(e.target.files?.[0]))} />
           <label>
             Image or GIF URL
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/boss.gif" />
