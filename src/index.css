@@ -6270,3 +6270,6 @@ select {
 
 /* Existing game account enters Underground without an intrusive second sign-in form. */
 .ug-entry-card{padding:26px;border:1px solid #a07842;border-radius:12px;background:linear-gradient(115deg,#30241c,#191a20);margin:18px 0;display:flex;flex-wrap:wrap;gap:13px;align-items:center}.ug-entry-card>span,.ug-entry-card>h3,.ug-entry-card>p{flex-basis:100%;margin:0}.ug-entry-card>span{font-size:11px;font-weight:900;letter-spacing:2px;color:#e2b46d}.ug-entry-card h3{font:clamp(25px,4vw,39px) Impact,"Arial Narrow",sans-serif;letter-spacing:1px;color:#fff}.ug-entry-card p{color:#d3c6b4;line-height:1.5;font-size:14px}.ug-entry-card button{min-height:45px;padding:11px 17px;border-radius:8px;white-space:normal}@media(max-width:580px){.ug-entry-card{padding:18px}.ug-entry-card button{width:100%}}
+
+/* Phase 1.68: six clear mobile navigation destinations. */
+@media(max-width:980px){.bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;padding:6px}.bottom-nav button{font-size:clamp(10px,2.6vw,12px);padding:10px 2px;border-radius:12px}.focused-page-panel{scroll-margin-top:10px}}
