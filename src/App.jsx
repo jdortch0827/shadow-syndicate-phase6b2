@@ -3181,7 +3181,7 @@ export default function App() {
       return "That username or password is not right.";
     }
 
-    const nextUsers = {
+    try { await ensureShadowHomeSession({email,password,username:cleanUsername,migrate:true}); } catch(error) { return "Online sign-in: "+error.message; }\n    setOnlineReady(true);\n    const nextUsers = {
       ...users,
       [cleanUsername]: {
         ...user,
