@@ -7,6 +7,7 @@ on:
     branches:
       - phase-1-53-cinematic-test
       - fix-underground-single-entry
+      - fix-real-single-auth
       - main
 
 concurrency:
