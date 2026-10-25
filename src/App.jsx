@@ -3176,20 +3176,20 @@ export default function App() {
   async function signIn(email, password) {
     const cleanEmail=String(email||"").trim().toLowerCase();
     if(!cleanEmail.includes("@"))return "Enter your email address.";
-    const candidates=Object.entries(users).filter(([name,user])=>name!==ADMIN_USERNAME&&passwordMatches(user,password)&&(user.email?.toLowerCase()===cleanEmail||!user.email));
+
     const linked=Object.entries(users).find(([,user])=>user.email?.toLowerCase()===cleanEmail);
     if(linked&&!passwordMatches(linked[1],password))return "Incorrect password.";
-    if(!linked&&candidates.length>1)return "More than one old character uses that password. Contact support to link the correct save.";
-    const legacy=linked||candidates[0]||null;
-    if(!legacy){return "No matching local character found on this device. Use New Player to register this email, or return to the browser where your original character is saved."; }
+
+    const legacy=linked||null;
+
     let token;
     try{token=await ensureShadowHomeSession({email:cleanEmail,password,username:legacy?.[0]||"",migrate:Boolean(legacy)});}
     catch(error){return "Online sign-in: "+error.message;}
     if(!token)return "Unable to verify your online session.";
     const identity=shadowUserFromToken(token);
-    const cleanUsername=normalizeUsername(legacy?.[0]||identity?.username||cleanEmail.split("@")[0]);
+    const cleanUsername=normalizeUsername(legacy?.[0]||("player_"+String(identity?.id||"").slice(0,12)));
     const user=users[cleanUsername]||createAuthUser({username:cleanUsername,displayName:identity?.username||cleanUsername,password,pin:"",role:"player"});
-    const nextUsers={...users,[cleanUsername]:{...user,email:cleanEmail,lastLoginAt:Date.now()}};
+    const nextUsers={...users,[cleanUsername]:{...user,email:cleanEmail,onlineUserId:identity?.id,lastLoginAt:Date.now()}};
     refreshUsers(nextUsers);
     const nextSession={username:cleanUsername,signedInAt:Date.now()};
     localStorage.setItem(AUTH_SESSION_KEY,JSON.stringify(nextSession));
@@ -6365,10 +6365,6 @@ function AuthScreen({ users, onSignIn, onCreateAccount, onResetPassword }) {
             {mode === "create" && (
               <>
                 <PasswordField label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} placeholder="type it again" autoComplete="new-password" />
-                <label>
-                  Recovery PIN
-                  <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4 digits you can remember" inputMode="numeric" />
-                </label>
               </>
             )}
 
