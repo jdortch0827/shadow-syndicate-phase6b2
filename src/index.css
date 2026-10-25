@@ -6247,3 +6247,6 @@ select {
 @media(max-width:850px){.ug-hero{grid-template-columns:1fr}.ug-hero-art{position:absolute;inset:0;opacity:.35;pointer-events:none}.ug-hero-content{padding:35px 24px}.ug-stats{grid-template-columns:repeat(2,1fr)}.ug-forum-layout{grid-template-columns:1fr}.ug-hero h1{font-size:65px}}
 @media(max-width:480px){.ug-hero{min-height:330px}.ug-hero h1{font-size:56px}.ug-stats>div{padding:15px}.ug-stats strong{font-size:27px}.ug-tabs button{padding:13px 12px;font-size:10px}.ug-section-heading{align-items:start}.ug-counter{font-size:9px}.ug-history-row{flex-wrap:wrap}.ug-footer{flex-direction:column}.ug-fight-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.underground button{transition:none}}
+
+/* Keep experimental mechanics out of the main mobster experience. */
+.war-room>section>details{margin:16px 0;border:1px solid #4e4234;border-radius:10px;background:#16181c;padding:12px}.war-room>section>details>summary{color:#c9a46e;font-weight:800;cursor:pointer;padding:8px}.war-room>section>details[open]>summary{margin-bottom:12px}
