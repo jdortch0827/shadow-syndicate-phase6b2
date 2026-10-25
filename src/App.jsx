@@ -47,6 +47,7 @@ import FightPage from "./pages/FightPage";
 import EmpirePage from "./pages/EmpirePage";
 import WarRoom from "./components/WarRoom";
 import MultiplayerLobby from "./components/MultiplayerLobby";
+import {clearShadowSession} from "./lib/shadowAuth";
 import { trainTroops, resolveRaid, healTroops } from "./logic/warfare";
 import MorePage from "./pages/MorePage";
 import StorePage from "./pages/StorePage";
@@ -3252,6 +3253,7 @@ export default function App() {
       localStorage.setItem(getUserSaveKey(session.username), JSON.stringify(game));
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
+    clearShadowSession();
     setSession(null);
     setTab("command");
   }
@@ -5680,7 +5682,7 @@ export default function App() {
           )}
 
           {tab === "multiplayer" && (
-            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby /></Panel>
+            <Panel title="Mob Wars · The Underground" sub="Fight real players, build rivalries, climb the rankings, and post in the Underground forums."><MultiplayerLobby legacyHandle={currentUser?.displayName||game.bossName||session?.username||""} /></Panel>
           )}
 
           {tab === "warroom" && (
