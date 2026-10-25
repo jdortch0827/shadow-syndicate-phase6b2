@@ -5199,6 +5199,8 @@ export default function App() {
     }
   }, [session?.username, game?.started]);
 
+  if(authChecking)return <div className="start-page auth-page"><div className="auth-shell"><section className="panel"><h2>Connecting to Shadow Syndicate...</h2><p>Restoring your game session.</p></section></div></div>;
+
   if (!session || !currentUser || !onlineReady) {
     return (
       <>
