@@ -12,7 +12,7 @@ test("online onboarding reuses existing boss name without claiming account migra
  const app=read("src/App.jsx"),lobby=read("src/components/MultiplayerLobby.jsx");
  assert.ok(app.includes("legacyHandle={currentUser?.displayName"));
  assert.ok(lobby.includes("legacyHandle"));
- assert.ok(lobby.includes("offline save remains protected"));
+ assert.ok(lobby.includes("joinShadowAlpha(access,handle)"));
 });
 test("login fields use full width accessible controls",()=>{
  const css=read("src/index.css");
